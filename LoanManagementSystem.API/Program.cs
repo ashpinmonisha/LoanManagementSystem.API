@@ -1,34 +1,86 @@
+using LoanManagementSystem.Application.Service;
+using LoanManagementSystem.Application.ServiceInterface;
+using LoanManagementSystem.Domain.RepositoryInterfaces;
+using LoanManagementSystem.Infrastructure.Data;
+using LoanManagementSystem.Infrastructure.Repository;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
-namespace LoanManagementSystem.API
-{
-    public class Program
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+
+// JWT Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        public static void Main(string[] args)
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            var builder = WebApplication.CreateBuilder(args);
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
 
-            // Add services to the container.
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
 
-            builder.Services.AddControllers();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddOpenApi();
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(
+                    builder.Configuration["Jwt:Key"]!))
+        };
+    });
 
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.MapOpenApi();
-            }
-
-            app.UseHttpsRedirection();
-
-            app.UseAuthorization();
+builder.Services.AddAuthorization();
 
 
-            app.MapControllers();
+// Database
+builder.Services.AddDbContext<ApplicationDbContext>(
+    options =>
+    {
+        options.UseSqlServer(
+            builder.Configuration
+                .GetConnectionString("LoanManagementCs"));
+    });
 
-            app.Run();
-        }
-    }
-}
+
+// Application Services
+builder.Services.AddScoped<
+    IEmployeeService,
+    EmployeeService>();
+
+builder.Services.AddScoped<
+    ILoanService,
+    LoanService>();
+
+builder.Services.AddScoped<
+    IRiskAssessmentService,
+    RiskAssessmentService>();
+
+
+// Repositories
+builder.Services.AddScoped<
+    IEmployeeRepository,
+    EmployeeRepository>();
+
+builder.Services.AddScoped<
+    ILoanApplicationRepository,
+    LoanApplicationRepository>();
+
+builder.Services.AddScoped<
+    IRiskAssessmentRepository,
+    RiskAssessmentRepository>();
+builder.Services.AddScoped<JwtService>();
+
+var app = builder.Build();
+
+app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
