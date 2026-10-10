@@ -15,6 +15,17 @@ namespace LoanManagementSystem.Infrastructure.Data
 
         public DbSet<LoanApplication> LoanApplications { get; set; }
 
+
+        public DbSet<Customer> Customers { get; set; }
+
+        public DbSet<KycDocument> KycDocuments { get; set; }
+
+        public DbSet<CustomerEligibilityProfile>
+            CustomerEligibilityProfiles
+        { get; set; }
+
+
+
         public DbSet<RiskAssessment> RiskAssessments { get; set; }
 
         protected override void OnModelCreating(
@@ -39,6 +50,38 @@ namespace LoanManagementSystem.Infrastructure.Data
             modelBuilder.Entity<RiskAssessment>()
                 .Property(x => x.RiskScore)
                 .HasPrecision(18, 2);
+
+
+
+            modelBuilder.Entity<Customer>()
+                .HasIndex(x => x.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<Customer>()
+                .HasIndex(x => x.PhoneNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<Customer>()
+                .HasMany(x => x.KycDocuments)
+                .WithOne(x => x.Customer)
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Customer>()
+                .HasOne(x => x.EligibilityProfile)
+                .WithOne(x => x.Customer)
+                .HasForeignKey<CustomerEligibilityProfile>(
+                    x => x.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CustomerEligibilityProfile>()
+                .Property(x => x.MonthlyIncome)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<CustomerEligibilityProfile>()
+                .Property(x => x.ExistingLoanAmount)
+                .HasPrecision(18, 2);
+
         }
     }
 }
