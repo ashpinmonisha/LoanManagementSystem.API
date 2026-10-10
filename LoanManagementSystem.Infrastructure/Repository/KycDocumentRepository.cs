@@ -18,16 +18,23 @@ public class KycDocumentRepository : IKycDocumentRepository
     public async Task<KycDocument?> GetByIdAsync(int documentId)
     {
         return await _context.KycDocuments
-            .FirstOrDefaultAsync(
-                x => x.KycDocumentId == documentId);
+            .FirstOrDefaultAsync(x => x.KycDocumentId == documentId);
     }
 
-    public async Task<List<KycDocument>> GetByCustomerIdAsync(
+    public async Task<IEnumerable<KycDocument>> GetByCustomerIdAsync(
         int customerId)
     {
         return await _context.KycDocuments
             .Where(x => x.CustomerId == customerId)
             .OrderByDescending(x => x.UploadedAt)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<KycDocument>> GetPendingDocumentsAsync()
+    {
+        return await _context.KycDocuments
+            .Where(x => x.VerificationStatus == "Pending")
+            .OrderBy(x => x.UploadedAt)
             .ToListAsync();
     }
 

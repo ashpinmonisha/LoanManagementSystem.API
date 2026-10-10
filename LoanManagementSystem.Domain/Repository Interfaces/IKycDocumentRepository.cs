@@ -7,8 +7,9 @@ public interface IKycDocumentRepository
 {
     Task<KycDocument?> GetByIdAsync(int documentId);
 
-    Task<List<KycDocument>> GetByCustomerIdAsync(
-        int customerId);
+    Task<IEnumerable<KycDocument>> GetByCustomerIdAsync(int customerId);
+
+    Task<IEnumerable<KycDocument>> GetPendingDocumentsAsync();
 
     Task AddAsync(KycDocument document);
 

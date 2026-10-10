@@ -82,6 +82,10 @@ namespace LoanManagementSystem.Infrastructure.Data
                 .Property(x => x.ExistingLoanAmount)
                 .HasPrecision(18, 2);
 
+            modelBuilder.Entity<CustomerEligibilityProfile>()
+    .Property(x => x.ExistingMonthlyObligations)
+    .HasPrecision(18, 2);
+
         }
     }
 }

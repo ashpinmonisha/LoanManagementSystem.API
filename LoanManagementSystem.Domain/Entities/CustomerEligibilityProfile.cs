@@ -13,6 +13,16 @@ public class CustomerEligibilityProfile
     [MaxLength(50)]
     public string EmploymentStatus { get; set; } = string.Empty;
 
+
+    public decimal ExistingMonthlyObligations { get; set; }
+
+
+    public int CreditScore { get; set; }
+    public int ExistingLoanCount { get; set; }
+
+
+    public string EmploymentType { get; set; } = string.Empty;
+
     [MaxLength(150)]
     public string? EmployerName { get; set; }
 
