@@ -18,70 +18,38 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddScoped<IKycDocumentService, KycDocumentService>();
 
-
-builder.Services.AddScoped<
-    ICustomerEligibilityService,
-    CustomerEligibilityService>();
-
-// Swagger + JWT Bearer Authentication
-builder.Services.AddEndpointsApiExplorer();
-
-builder.Services.AddSwaggerGen(options =>
+// CORS configuration for Angular
+builder.Services.AddCors(options =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddPolicy("AngularPolicy", policy =>
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter your JWT access token."
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
-
-   
-options.AddSecurityRequirement(document =>
-{
-    var requirement = new OpenApiSecurityRequirement();
-    requirement.Add(
-        new OpenApiSecuritySchemeReference("Bearer", document),
-        new List<string>());
-
-    return requirement;
 });
 
-});
-
-// JWT Configuration
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException(
-        "JWT Key is missing from appsettings.json");
-
-var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? throw new InvalidOperationException(
-        "JWT Issuer is missing from appsettings.json");
-
-var jwtAudience = builder.Configuration["Jwt:Audience"]
-    ?? throw new InvalidOperationException(
-        "JWT Audience is missing from appsettings.json");
-
-// Authentication
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+// JWT Authentication
+builder.Services.AddAuthentication(
+    JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
 
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
 
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey))
-        };
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(
+                        builder.Configuration["Jwt:Key"]!))
+            };
     });
 
 // Authorization
@@ -89,8 +57,11 @@ builder.Services.AddAuthorization();
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("reservation")));
+        builder.Configuration
+            .GetConnectionString("LoanManagementCs"));
+});
 
 // Application Services
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
@@ -98,10 +69,7 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 
-// JWT Service
-builder.Services.AddScoped<JwtService>();
-
-// Existing Repositories
+// Repositories
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
 builder.Services.AddScoped<IRiskAssessmentRepository, RiskAssessmentRepository>();
@@ -110,6 +78,7 @@ builder.Services.AddScoped<IRiskAssessmentRepository, RiskAssessmentRepository>(
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IKycDocumentRepository, KycDocumentRepository>();
 builder.Services.AddScoped<ICustomerEligibilityRepository, CustomerEligibilityRepository>();
+builder.Services.AddScoped<JwtService>();
 
 var app = builder.Build();
 
@@ -122,7 +91,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Authentication must come before Authorization
+app.UseRouting();
+
+// CORS must be before authentication and authorization
+app.UseCors("AngularPolicy");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
