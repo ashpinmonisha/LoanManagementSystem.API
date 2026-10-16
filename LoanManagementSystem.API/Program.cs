@@ -1,9 +1,12 @@
 using LoanManagementSystem.API.Middleware;
 using LoanManagementSystem.Application.Service;
+using LoanManagementSystem.Application.Services;
 using LoanManagementSystem.Application.ServiceInterface;
 using LoanManagementSystem.Domain.RepositoryInterfaces;
 using LoanManagementSystem.Infrastructure.Data;
 using LoanManagementSystem.Infrastructure.Repository;
+using LoanManagementSystem.Infrastructure.Notifications;
+using LoanManagementSystem.Infrastructure.Clients;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +14,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+// Enable console logging for easier debugging
+builder.Logging.AddConsole();
 
 // Controllers and common middleware
 builder.Services.AddControllers();
@@ -70,13 +75,73 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IKycDocumentService, KycDocumentService>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// 4.3 Outstanding Balance
+builder.Services.AddScoped<
+    IOutstandingBalanceService,
+    OutstandingBalanceService>();
+
+builder.Services.AddHttpClient<
+    ILoanModuleClient,
+    LoanModuleClient>(client =>
+    {
+        client.BaseAddress = new Uri(
+            builder.Configuration["LoanModuleApi:BaseUrl"]
+            ?? throw new InvalidOperationException(
+                "LoanModuleApi:BaseUrl is missing"));
+    });
+builder.Services.AddScoped<
+    IAdvancedPaymentService,
+    AdvancedPaymentService>();
+
+builder.Services.AddScoped<
+    IPaymentNotificationSender,
+    PaymentNotificationSender>();
+
+builder.Services.AddScoped<
+    IPaymentNotificationQueue,
+    PaymentNotificationQueue>();
+
+var customerApiUrl =
+    builder.Configuration["CustomerApi:BaseUrl"];
+
+if (string.IsNullOrWhiteSpace(customerApiUrl))
+{
+    throw new InvalidOperationException(
+        "Configure CustomerApi:BaseUrl in appsettings.json");
+}
+
+builder.Services.AddHttpClient<
+    ICustomerContactClient,
+    CustomerContactClient>(client =>
+    {
+        client.BaseAddress = new Uri(customerApiUrl);
+    });
+
+builder.Services.AddHostedService<NotificationWorker>();
+
 
 // Other services
 builder.Services.AddScoped<JwtService>();
 
 var app = builder.Build();
 
-app.UseExceptionHandler();
+// Show detailed exceptions when running in Development to aid debugging
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler();
+}
 
 app.UseHttpsRedirection();
 

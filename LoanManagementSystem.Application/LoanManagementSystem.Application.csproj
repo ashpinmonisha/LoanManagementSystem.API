@@ -18,7 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LoanManagementSystem.Domain\LoanManagementSystem.Domain.csproj" />
-    <ProjectReference Include="..\LoanManagementSystem.Infrastructure\LoanManagementSystem.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

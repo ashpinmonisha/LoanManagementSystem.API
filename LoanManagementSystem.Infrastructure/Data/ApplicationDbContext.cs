@@ -24,6 +24,12 @@ namespace LoanManagementSystem.Infrastructure.Data
             CustomerEligibilityProfiles
         { get; set; }
 
+        public DbSet<Payment> Payments { get; set; }
+
+        public DbSet<Penalty> Penalties { get; set; }
+
+        public DbSet<PaymentNotification> PaymentNotifications { get; set; }
+
         public DbSet<RiskAssessment> RiskAssessments { get; set; }
 
         // MODULE 3: EMI & Interest
@@ -100,6 +106,63 @@ namespace LoanManagementSystem.Infrastructure.Data
                 entity.Property(x => x.MonthlyEmi).HasPrecision(18, 2);
                 entity.Property(x => x.TotalInterest).HasPrecision(18, 2);
                 entity.Property(x => x.TotalRepayment).HasPrecision(18, 2);
+            });
+
+            modelBuilder.Entity<Payment>(entity =>
+            {
+                entity.HasKey(p => p.PaymentId);
+
+                entity.Property(p => p.Amount)
+                      .HasPrecision(18, 2);
+
+                entity.Property(p => p.PaymentMethod)
+                      .HasMaxLength(50)
+                      .IsRequired();
+
+                entity.Property(p => p.PaymentReference)
+                      .HasMaxLength(100)
+                      .IsRequired();
+
+                entity.Property(p => p.PaymentStatus)
+                      .HasMaxLength(20)
+                      .IsRequired();
+
+                entity.HasIndex(p => p.PaymentReference)
+                      .IsUnique();
+            });
+
+            modelBuilder.Entity<Penalty>(entity =>
+            {
+                entity.HasKey(p => p.PenaltyId);
+
+                entity.Property(p => p.Amount)
+                      .HasPrecision(18, 2);
+
+                entity.Property(p => p.PaidAmount)
+                      .HasPrecision(18, 2);
+
+                entity.HasIndex(p => p.EmiId)
+                      .IsUnique();
+            });
+
+            modelBuilder.Entity<PaymentNotification>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Channel)
+                    .HasMaxLength(20).IsRequired();
+
+                entity.Property(x => x.Destination)
+                    .HasMaxLength(320).IsRequired();
+
+                entity.Property(x => x.Status)
+                    .HasMaxLength(20).IsRequired();
+
+                entity.HasIndex(x => new
+                {
+                    x.PaymentId,
+                    x.Channel
+                }).IsUnique();
             });
         }
     }
