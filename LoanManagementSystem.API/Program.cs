@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Controllers
 builder.Services.AddControllers();
 
+<<<<<<< HEAD
 // JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("JWT Key is missing.");
@@ -41,12 +42,30 @@ builder.Services
         options.DefaultChallengeScheme =
             JwtBearerDefaults.AuthenticationScheme;
     })
+=======
+// CORS configuration for Angular
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AngularPolicy", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+// JWT Authentication
+builder.Services.AddAuthentication(
+    JwtBearerDefaults.AuthenticationScheme)
+>>>>>>> origin/feature_dev
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters =
             new TokenValidationParameters
             {
                 ValidateIssuer = true,
+<<<<<<< HEAD
                 ValidIssuer = jwtIssuer,
 
                 ValidateAudience = true,
@@ -60,6 +79,18 @@ builder.Services
                     Encoding.UTF8.GetBytes(jwtKey)),
 
                 RoleClaimType = ClaimTypes.Role
+=======
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(
+                        builder.Configuration["Jwt:Key"]!))
+>>>>>>> origin/feature_dev
             };
     });
 
@@ -68,8 +99,11 @@ builder.Services.AddAuthorization();
 
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("reservation")));
+        builder.Configuration
+            .GetConnectionString("LoanManagementCs"));
+});
 
 // Application services
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
@@ -77,9 +111,12 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 
+<<<<<<< HEAD
 // JWT service
 builder.Services.AddScoped<JwtService>();
 
+=======
+>>>>>>> origin/feature_dev
 // Repositories
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
@@ -88,6 +125,7 @@ builder.Services.AddScoped<IRiskAssessmentRepository, RiskAssessmentRepository>(
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IKycDocumentRepository, KycDocumentRepository>();
 builder.Services.AddScoped<ICustomerEligibilityRepository, CustomerEligibilityRepository>();
+<<<<<<< HEAD
 builder.Services.AddScoped<IKycDocumentService, KycDocumentService>();
 builder.Services.AddScoped<LoanManagementSystem.Domain.RepositoryInterfaces.IKycDocumentHistoryRepository, LoanManagementSystem.Infrastructure.Repository.KycDocumentHistoryRepository>();
 
@@ -120,6 +158,9 @@ if (enableBackground)
 // Swagger - basic setup compatible with standard Swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+=======
+builder.Services.AddScoped<JwtService>();
+>>>>>>> origin/feature_dev
 
 var app = builder.Build();
 
@@ -134,7 +175,15 @@ app.MapHealthChecks("/health");
 
 app.UseHttpsRedirection();
 
+<<<<<<< HEAD
 // Authentication must run before authorization
+=======
+app.UseRouting();
+
+// CORS must be before authentication and authorization
+app.UseCors("AngularPolicy");
+
+>>>>>>> origin/feature_dev
 app.UseAuthentication();
 app.UseAuthorization();
 
