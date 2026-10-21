@@ -35,6 +35,16 @@ namespace LoanManagementSystem.Infrastructure.Data
         // MODULE 3: EMI & Interest
         public DbSet<LoanCalculationRecord> LoanCalculations { get; set; }
 
+
+        public DbSet<RazorpayPaymentOrder> RazorpayPaymentOrders
+    => Set<RazorpayPaymentOrder>();
+
+        public DbSet<EmiPaymentAllocation> EmiPaymentAllocations
+    => Set<EmiPaymentAllocation>();
+
+        public DbSet<PaymentAllocation> PaymentAllocations
+    => Set<PaymentAllocation>();
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder)
         {
@@ -164,6 +174,72 @@ namespace LoanManagementSystem.Infrastructure.Data
                     x.Channel
                 }).IsUnique();
             });
+            modelBuilder.Entity<RazorpayPaymentOrder>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Amount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.RazorpayOrderId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(x => x.RazorpayPaymentId)
+                    .HasMaxLength(100);
+
+                entity.HasIndex(x => x.RazorpayOrderId)
+                    .IsUnique();
+
+                entity.HasIndex(x => x.RazorpayPaymentId)
+                    .IsUnique()
+                    .HasFilter("[RazorpayPaymentId] IS NOT NULL");
+            });
+
+            modelBuilder.Entity<EmiPaymentAllocation>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Amount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.IdempotencyKey)
+                    .HasMaxLength(150)
+                    .IsRequired();
+
+                entity.Property(x => x.Status)
+                    .HasMaxLength(30)
+                    .IsRequired();
+
+                entity.HasIndex(x => x.PaymentId)
+                    .IsUnique();
+
+                entity.HasIndex(x => x.IdempotencyKey)
+                    .IsUnique();
+            });
+
+            modelBuilder.Entity<PaymentAllocation>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Amount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.IdempotencyKey)
+                    .HasMaxLength(150)
+                    .IsRequired();
+
+                entity.Property(x => x.Status)
+                    .HasMaxLength(30)
+                    .IsRequired();
+
+                entity.HasIndex(x => x.PaymentId)
+                    .IsUnique();
+
+                entity.HasIndex(x => x.IdempotencyKey)
+                    .IsUnique();
+            });
+
         }
     }
 }

@@ -26,4 +26,8 @@
     <ProjectReference Include="..\LoanManagementSystem.Application\LoanManagementSystem.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Payments\" />
+  </ItemGroup>
+
 </Project>

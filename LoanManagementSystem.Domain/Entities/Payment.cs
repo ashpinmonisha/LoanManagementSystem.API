@@ -8,6 +8,10 @@
 
         public int LoanId { get; set; }
 
+        // EMIs are identified elsewhere in the system; store the related EmiId.
+        // Make nullable because a payment may not be assigned to an EMI yet.
+        public int? EmiId { get; set; }
+
         public decimal Amount { get; set; }
 
         public DateTime PaymentDate { get; set; }

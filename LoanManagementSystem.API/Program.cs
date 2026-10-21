@@ -1,16 +1,19 @@
 using LoanManagementSystem.API.Middleware;
+using LoanManagementSystem.Application.Interfaces;
 using LoanManagementSystem.Application.Service;
-using LoanManagementSystem.Application.Services;
 using LoanManagementSystem.Application.ServiceInterface;
+using LoanManagementSystem.Application.Services;
 using LoanManagementSystem.Domain.RepositoryInterfaces;
-using LoanManagementSystem.Infrastructure.Data;
-using LoanManagementSystem.Infrastructure.Repository;
-using LoanManagementSystem.Infrastructure.Notifications;
 using LoanManagementSystem.Infrastructure.Clients;
-
+using LoanManagementSystem.Infrastructure.Data;
+using LoanManagementSystem.Infrastructure.Notifications;
+using LoanManagementSystem.Infrastructure.Payments;
+using LoanManagementSystem.Infrastructure.Repository;
+using LoanManagementSystem.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Net.Http.Headers;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -122,16 +125,71 @@ builder.Services.AddHttpClient<
     ICustomerContactClient,
     CustomerContactClient>(client =>
     {
-        client.BaseAddress = new Uri(customerApiUrl);
+        var baseUrl = builder.Configuration["CustomerApi:BaseUrl"]
+       ?? throw new InvalidOperationException(
+           "CustomerApi:BaseUrl is missing");
+
+        client.BaseAddress = new Uri(baseUrl);
     });
 
 builder.Services.AddHostedService<NotificationWorker>();
+
+builder.Services.AddHttpClient<
+    IRazorpayPaymentService,
+    RazorpayPaymentService>();
+
 
 
 // Other services
 builder.Services.AddScoped<JwtService>();
 
+builder.Services.AddHttpClient<IEmiModuleClient, EmiModuleClient>(
+    (sp, client) =>
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+
+        string url = config["EmiModule:BaseUrl"]
+            ?? throw new InvalidOperationException(
+                "EmiModule:BaseUrl is missing");
+
+        client.BaseAddress = new Uri(url);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
+builder.Services.AddScoped<
+    IEmiAllocationService,
+    EmiAllocationService>();
+
 var app = builder.Build();
+
+// Log a masked Razorpay KeyId at startup for verification (never log secrets).
+try
+{
+    var runtimeKeyId = builder.Configuration["Razorpay:KeyId"]
+        ?? Environment.GetEnvironmentVariable("RAZORPAY_KEY_ID");
+
+    if (!string.IsNullOrWhiteSpace(runtimeKeyId))
+    {
+        string masked;
+        if (runtimeKeyId.Length <= 8)
+            masked = new string('*', runtimeKeyId.Length);
+        else
+            masked = runtimeKeyId.Substring(0, 4)
+                     + new string('*', Math.Max(0, runtimeKeyId.Length - 8))
+                     + runtimeKeyId.Substring(runtimeKeyId.Length - 4);
+
+        app.Logger.LogInformation("Razorpay KeyId in use (masked): {KeyId}", masked);
+    }
+    else
+    {
+        app.Logger.LogWarning("Razorpay KeyId not configured.");
+    }
+}
+catch (Exception ex)
+{
+    // Ensure startup doesn't crash due to logging; configuration validation will handle missing keys later.
+    app.Logger.LogWarning(ex, "Failed to read Razorpay KeyId for masked logging.");
+}
 
 // Show detailed exceptions when running in Development to aid debugging
 if (app.Environment.IsDevelopment())
@@ -144,6 +202,9 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// Log request bodies to help diagnose malformed JSON / model binding problems.
+app.UseMiddleware<LoanManagementSystem.API.Middleware.RequestBodyLoggingMiddleware>();
 
 app.UseRouting();
 
