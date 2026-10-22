@@ -11,6 +11,10 @@ public interface IKycDocumentService
 
     Task<object> GetDocumentByIdAsync(int documentId);
 
+    Task<string> GetDocumentFilePathAsync(int documentId);
+
+    Task<bool> CustomerOwnsDocumentAsync(int documentId, int customerId);
+
 
     Task<object> GetPendingDocumentsAsync();
 

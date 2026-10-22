@@ -34,6 +34,17 @@ public class CustomerEligibilityService : ICustomerEligibilityService
             throw new ArgumentException(
                 "Existing monthly obligations cannot exceed monthly income.");
 
+        if (string.IsNullOrWhiteSpace(dto.EmploymentType))
+            throw new ArgumentException("Employment type is required.");
+
+        if (string.IsNullOrWhiteSpace(dto.EmploymentStatus))
+            throw new ArgumentException("Employment status is required.");
+
+        dto.EmploymentType = dto.EmploymentType.Trim();
+        dto.EmploymentStatus = dto.EmploymentStatus.Trim();
+        dto.EmployerName = dto.EmployerName?.Trim();
+        dto.FinancialProfileRemarks = dto.FinancialProfileRemarks?.Trim();
+
         var existing = await _eligibilityRepository
             .GetByCustomerIdAsync(dto.CustomerId);
 
@@ -41,10 +52,16 @@ public class CustomerEligibilityService : ICustomerEligibilityService
         {
             existing.MonthlyIncome = dto.MonthlyIncome;
             existing.EmploymentType = dto.EmploymentType;
+            existing.EmploymentStatus = dto.EmploymentStatus;
+            existing.EmployerName = dto.EmployerName;
+            existing.EmploymentExperienceYears = dto.EmploymentExperienceYears;
             existing.CreditScore = dto.CreditScore;
             existing.ExistingLoanCount = dto.ExistingLoanCount;
             existing.ExistingMonthlyObligations =
                 dto.ExistingMonthlyObligations;
+            existing.ExistingLoanAmount = dto.ExistingLoanAmount;
+            existing.FinancialProfileRemarks = dto.FinancialProfileRemarks;
+            existing.UpdatedAt = DateTime.UtcNow;
 
             await _eligibilityRepository.SaveChangesAsync();
 
@@ -54,9 +71,15 @@ public class CustomerEligibilityService : ICustomerEligibilityService
                 existing.CustomerId,
                 existing.MonthlyIncome,
                 existing.EmploymentType,
+                existing.EmploymentStatus,
+                existing.EmployerName,
+                existing.EmploymentExperienceYears,
                 existing.CreditScore,
                 existing.ExistingLoanCount,
-                existing.ExistingMonthlyObligations
+                existing.ExistingMonthlyObligations,
+                existing.ExistingLoanAmount,
+                existing.FinancialProfileRemarks,
+                existing.UpdatedAt
             };
         }
 
@@ -65,9 +88,15 @@ public class CustomerEligibilityService : ICustomerEligibilityService
             CustomerId = dto.CustomerId,
             MonthlyIncome = dto.MonthlyIncome,
             EmploymentType = dto.EmploymentType,
+            EmploymentStatus = dto.EmploymentStatus,
+            EmployerName = dto.EmployerName,
+            EmploymentExperienceYears = dto.EmploymentExperienceYears,
             CreditScore = dto.CreditScore,
             ExistingLoanCount = dto.ExistingLoanCount,
-            ExistingMonthlyObligations = dto.ExistingMonthlyObligations
+            ExistingMonthlyObligations = dto.ExistingMonthlyObligations,
+            ExistingLoanAmount = dto.ExistingLoanAmount,
+            FinancialProfileRemarks = dto.FinancialProfileRemarks,
+            UpdatedAt = DateTime.UtcNow
         };
 
         await _eligibilityRepository.AddAsync(profile);
@@ -79,9 +108,15 @@ public class CustomerEligibilityService : ICustomerEligibilityService
             profile.CustomerId,
             profile.MonthlyIncome,
             profile.EmploymentType,
+            profile.EmploymentStatus,
+            profile.EmployerName,
+            profile.EmploymentExperienceYears,
             profile.CreditScore,
             profile.ExistingLoanCount,
-            profile.ExistingMonthlyObligations
+            profile.ExistingMonthlyObligations,
+            profile.ExistingLoanAmount,
+            profile.FinancialProfileRemarks,
+            profile.UpdatedAt
         };
     }
 
@@ -104,9 +139,15 @@ public class CustomerEligibilityService : ICustomerEligibilityService
             profile.CustomerId,
             profile.MonthlyIncome,
             profile.EmploymentType,
+            profile.EmploymentStatus,
+            profile.EmployerName,
+            profile.EmploymentExperienceYears,
             profile.CreditScore,
             profile.ExistingLoanCount,
-            profile.ExistingMonthlyObligations
+            profile.ExistingMonthlyObligations,
+            profile.ExistingLoanAmount,
+            profile.FinancialProfileRemarks,
+            profile.UpdatedAt
         };
     }
 

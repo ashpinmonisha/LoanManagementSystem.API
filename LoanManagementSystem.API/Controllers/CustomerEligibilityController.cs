@@ -1,4 +1,4 @@
-﻿
+﻿using System.Security.Claims;
 using LoanManagementSystem.Application.Dtos;
 using LoanManagementSystem.Application.ServiceInterface;
 using Microsoft.AspNetCore.Authorization;
@@ -21,10 +21,18 @@ public class CustomerEligibilityController : ControllerBase
 
     // Save or update eligibility details
     [HttpPost("save")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Customer")]
     public async Task<IActionResult> SaveEligibility(
         [FromBody] CustomerEligibilityDto dto)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (!TryGetAuthorizedCustomerId(dto.CustomerId, out var customerId))
+            return Forbid();
+
+        dto.CustomerId = customerId;
+
         try
         {
             var result =
@@ -44,9 +52,12 @@ public class CustomerEligibilityController : ControllerBase
 
     // Get eligibility details by customer ID
     [HttpGet("{customerId:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Customer")]
     public async Task<IActionResult> GetEligibility(int customerId)
     {
+        if (!TryGetAuthorizedCustomerId(customerId, out _))
+            return Forbid();
+
         try
         {
             var result =
@@ -63,9 +74,12 @@ public class CustomerEligibilityController : ControllerBase
 
     // Check basic eligibility
     [HttpGet("{customerId:int}/check")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Customer")]
     public async Task<IActionResult> CheckEligibility(int customerId)
     {
+        if (!TryGetAuthorizedCustomerId(customerId, out _))
+            return Forbid();
+
         try
         {
             var result =
@@ -77,5 +91,19 @@ public class CustomerEligibilityController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+    }
+
+    private bool TryGetAuthorizedCustomerId(int requestedCustomerId, out int customerId)
+    {
+        customerId = requestedCustomerId;
+
+        if (User.IsInRole("Admin"))
+            return requestedCustomerId > 0;
+
+        var claim = User.FindFirst("CustomerId")?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        return int.TryParse(claim, out var tokenCustomerId) &&
+               tokenCustomerId == requestedCustomerId;
     }
 }

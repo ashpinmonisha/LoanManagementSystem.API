@@ -13,10 +13,14 @@ namespace LoanManagementSystem.API.Controllers;
 public class KycDocumentController : ControllerBase
 {
     private readonly IKycDocumentService _kycService;
+    private readonly IWebHostEnvironment _environment;
 
-    public KycDocumentController(IKycDocumentService kycService)
+    public KycDocumentController(
+        IKycDocumentService kycService,
+        IWebHostEnvironment environment)
     {
         _kycService = kycService;
+        _environment = environment;
     }
 
     private int? GetCustomerId()
@@ -29,11 +33,14 @@ public class KycDocumentController : ControllerBase
             : null;
     }
 
-    // Customer uploads KYC document metadata
+    // Customer uploads a KYC document.
     [HttpPost("upload")]
     [Authorize(Roles = "Customer")]
     public async Task<IActionResult> UploadDocument(
-        [FromBody] KycDocumentUploadDto dto)
+        [FromForm] string documentType,
+        [FromForm] string documentNumber,
+        [FromForm] DateTime? expiryDate,
+        [FromForm] IFormFile file)
     {
         var customerId = GetCustomerId();
 
@@ -43,7 +50,41 @@ public class KycDocumentController : ControllerBase
                 message = "Customer ID is missing from the token."
             });
 
-        dto.CustomerId = customerId.Value;
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "A document file is required." });
+
+        const long maxFileSize = 5 * 1024 * 1024;
+        var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        if (file.Length > maxFileSize || !allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new
+            {
+                message = "Only PDF, JPG, JPEG, and PNG files up to 5 MB are allowed."
+            });
+        }
+
+        var storageDirectory = Path.Combine(
+            _environment.ContentRootPath, "Storage", "Kyc");
+        Directory.CreateDirectory(storageDirectory);
+
+        var storedFileName = $"{Guid.NewGuid():N}{extension}";
+        var storedPath = Path.Combine(storageDirectory, storedFileName);
+
+        await using (var stream = System.IO.File.Create(storedPath))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var dto = new KycDocumentUploadDto
+        {
+            CustomerId = customerId.Value,
+            DocumentType = documentType,
+            DocumentNumber = documentNumber,
+            ExpiryDate = expiryDate,
+            FilePath = Path.Combine("Storage", "Kyc", storedFileName)
+        };
 
         try
         {
@@ -56,7 +97,54 @@ public class KycDocumentController : ControllerBase
         }
         catch (ArgumentException ex)
         {
+            System.IO.File.Delete(storedPath);
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{documentId:int}/file")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> DownloadDocument(int documentId)
+    {
+        var customerId = GetCustomerId();
+        if (customerId == null)
+            return Unauthorized();
+
+        if (!await _kycService.CustomerOwnsDocumentAsync(documentId, customerId.Value))
+            return Forbid();
+
+        var relativePath = await _kycService.GetDocumentFilePathAsync(documentId);
+        var fullPath = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, relativePath));
+        var storageRoot = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "Storage", "Kyc"));
+
+        if (!fullPath.StartsWith(storageRoot, StringComparison.OrdinalIgnoreCase) ||
+            !System.IO.File.Exists(fullPath))
+            return NotFound();
+
+        return PhysicalFile(fullPath, "application/octet-stream");
+    }
+
+    [HttpGet("{documentId:int}")]
+    [Authorize(Roles = "Customer,Admin")]
+    public async Task<IActionResult> GetDocument(int documentId)
+    {
+        if (User.IsInRole("Customer"))
+        {
+            var customerId = GetCustomerId();
+            if (customerId == null)
+                return Unauthorized();
+
+            if (!await _kycService.CustomerOwnsDocumentAsync(documentId, customerId.Value))
+                return Forbid();
+        }
+
+        try
+        {
+            return Ok(await _kycService.GetDocumentByIdAsync(documentId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
     }
 

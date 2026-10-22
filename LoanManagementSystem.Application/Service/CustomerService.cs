@@ -24,8 +24,19 @@ public class CustomerService : ICustomerService
 
     public async Task<object?> RegisterAsync(CustomerRegisterDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.FullName) ||
+            string.IsNullOrWhiteSpace(dto.Email) ||
+            string.IsNullOrWhiteSpace(dto.PhoneNumber) ||
+            string.IsNullOrWhiteSpace(dto.Password))
+        {
+            return new { Message = "Name, email, phone number, and password are required." };
+        }
+
+        if (!string.Equals(dto.Password, dto.ConfirmPassword, StringComparison.Ordinal))
+            return new { Message = "Passwords do not match." };
+
         var email = dto.Email.Trim().ToLowerInvariant();
-        var phone = dto.PhoneNumber.Trim();
+        var phone = NormalizePhone(dto.PhoneNumber);
 
         if (dto.DateOfBirth.HasValue &&
             dto.DateOfBirth.Value.Date >= DateTime.UtcNow.Date)
@@ -68,6 +79,10 @@ public class CustomerService : ICustomerService
 
     public async Task<object?> LoginAsync(CustomerLoginDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.Email) ||
+            string.IsNullOrWhiteSpace(dto.Password))
+            return null;
+
         var email = dto.Email.Trim().ToLowerInvariant();
         var customer = await _customerRepository.GetByEmailAsync(email);
 
@@ -128,7 +143,13 @@ public class CustomerService : ICustomerService
             return new { Message = "Date of birth must be in the past." };
         }
 
-        var phone = dto.PhoneNumber.Trim();
+        if (string.IsNullOrWhiteSpace(dto.FullName) ||
+            string.IsNullOrWhiteSpace(dto.PhoneNumber))
+        {
+            return new { Message = "Name and phone number are required." };
+        }
+
+        var phone = NormalizePhone(dto.PhoneNumber);
 
         if (!string.Equals(
                 customer.PhoneNumber,
@@ -158,5 +179,15 @@ public class CustomerService : ICustomerService
             customer.DateOfBirth,
             customer.Gender
         };
+    }
+
+    private static string NormalizePhone(string phoneNumber)
+    {
+        return phoneNumber
+            .Trim()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("(", string.Empty)
+            .Replace(")", string.Empty);
     }
 }

@@ -16,9 +16,8 @@ public class KycDocumentUploadDto
     [StringLength(100)]
     public string DocumentNumber { get; set; } = string.Empty;
 
-    [Required]
     [StringLength(500)]
-    public string FilePath { get; set; } = string.Empty;
+    public string? FilePath { get; set; }
 
     public DateTime? ExpiryDate { get; set; }
 }
