@@ -2,13 +2,13 @@ using LoanManagementSystem.Application.Dtos;
 using LoanManagementSystem.Application.ServiceInterface;
 using LoanManagementSystem.Domain.Entities;
 using LoanManagementSystem.Infrastructure.Data;
-using MailKit.Search;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System;
+using Microsoft.EntityFrameworkCore;
+using System.Net.Http.Json;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace LoanManagementSystem.Infrastructure.Payments
 {
@@ -59,34 +59,146 @@ namespace LoanManagementSystem.Infrastructure.Payments
 
         public async Task<RazorpayOrderResponseDto> CreateOrderAsync(CreateRazorpayOrderDto dto)
         {
-            if (dto == null) throw new ArgumentNullException(nameof(dto));
+            if (dto == null || dto.CustomerId <= 0 || dto.LoanId <= 0 ||
+                dto.EmiId <= 0 || dto.Amount <= 0)
+                throw new ArgumentException("Customer, loan, EMI, and a positive amount are required.");
 
-            // Minimal placeholder implementation. Replace with real Razorpay order creation logic.
-            var response = new RazorpayOrderResponseDto
+            var request = new
             {
-                KeyId = _keyId,
-                OrderId = string.Empty,
-                Amount = 0,
-                Currency = "INR"
+                amount = checked((long)Math.Round(dto.Amount * 100m)),
+                currency = "INR",
+                receipt = $"loan-{dto.LoanId}-emi-{dto.EmiId}-{Guid.NewGuid():N}"
             };
 
-            return await Task.FromResult(response);
+            using var response = await _http.PostAsJsonAsync("orders", request);
+            response.EnsureSuccessStatusCode();
+
+            var providerOrder = await response.Content
+                .ReadFromJsonAsync<RazorpayOrderResponse>();
+
+            if (providerOrder == null || string.IsNullOrWhiteSpace(providerOrder.Id))
+                throw new InvalidOperationException("Razorpay returned an invalid order response.");
+
+            var order = new RazorpayPaymentOrder
+            {
+                CustomerId = dto.CustomerId,
+                LoanId = dto.LoanId,
+                EmiId = dto.EmiId,
+                Amount = dto.Amount,
+                RazorpayOrderId = providerOrder.Id,
+                Status = "Created"
+            };
+
+            _db.RazorpayPaymentOrders.Add(order);
+            await _db.SaveChangesAsync();
+
+            return new RazorpayOrderResponseDto
+            {
+                KeyId = _keyId,
+                OrderId = providerOrder.Id,
+                Amount = request.amount,
+                Currency = request.currency
+            };
         }
 
         public async Task<PaymentConfirmationDto?> VerifyPaymentAsync(VerifyRazorpayPaymentDto dto)
         {
-            if (dto == null) throw new ArgumentNullException(nameof(dto));
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RazorpayOrderId) ||
+                string.IsNullOrWhiteSpace(dto.RazorpayPaymentId) ||
+                string.IsNullOrWhiteSpace(dto.RazorpaySignature))
+                throw new ArgumentException("Razorpay order, payment, and signature are required.");
 
-            // Placeholder: implement actual signature verification and DB updates here.
-            return await Task.FromResult<PaymentConfirmationDto?>(null);
+            var order = await _db.RazorpayPaymentOrders
+                .FirstOrDefaultAsync(x => x.RazorpayOrderId == dto.RazorpayOrderId);
+
+            if (order == null)
+                return null;
+
+            var payload = $"{dto.RazorpayOrderId}|{dto.RazorpayPaymentId}";
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_keySecret));
+            var expectedSignature = Convert.ToHexString(
+                hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)))
+                .ToLowerInvariant();
+
+            var suppliedSignature = dto.RazorpaySignature.Trim().ToLowerInvariant();
+            if (!CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(expectedSignature),
+                    Encoding.UTF8.GetBytes(suppliedSignature)))
+                return null;
+
+            if (order.Status == "Completed")
+                return await BuildConfirmationAsync(order, dto.RazorpayPaymentId);
+
+            order.RazorpayPaymentId = dto.RazorpayPaymentId;
+            order.Status = "Completed";
+            order.VerifiedAt = DateTime.UtcNow;
+
+            var payment = await _db.Payments
+                .FirstOrDefaultAsync(x => x.PaymentReference == dto.RazorpayPaymentId);
+
+            if (payment == null)
+            {
+                payment = new Payment
+                {
+                    CustomerId = order.CustomerId,
+                    LoanId = order.LoanId,
+                    EmiId = order.EmiId,
+                    Amount = order.Amount,
+                    PaymentDate = DateTime.UtcNow,
+                    PaymentMethod = "Razorpay",
+                    PaymentReference = dto.RazorpayPaymentId,
+                    PaymentStatus = "Completed"
+                };
+                _db.Payments.Add(payment);
+            }
+
+            await _db.SaveChangesAsync();
+            return await BuildConfirmationAsync(order, dto.RazorpayPaymentId);
         }
 
         public async Task<PaymentConfirmationDto?> GetConfirmationAsync(string razorpayOrderId)
         {
-            if (string.IsNullOrWhiteSpace(razorpayOrderId)) throw new ArgumentNullException(nameof(razorpayOrderId));
+            if (string.IsNullOrWhiteSpace(razorpayOrderId))
+                throw new ArgumentException("Razorpay order ID is required.");
 
-            // Placeholder: fetch confirmation from DB or Razorpay API.
-            return await Task.FromResult<PaymentConfirmationDto?>(null);
+            var order = await _db.RazorpayPaymentOrders
+                .FirstOrDefaultAsync(x => x.RazorpayOrderId == razorpayOrderId);
+
+            if (order == null || order.Status != "Completed" ||
+                string.IsNullOrWhiteSpace(order.RazorpayPaymentId))
+                return null;
+
+            return await BuildConfirmationAsync(order, order.RazorpayPaymentId);
+        }
+
+        private async Task<PaymentConfirmationDto?> BuildConfirmationAsync(
+            RazorpayPaymentOrder order,
+            string paymentReference)
+        {
+            var payment = await _db.Payments
+                .FirstOrDefaultAsync(x => x.PaymentReference == paymentReference);
+
+            if (payment == null)
+                return null;
+
+            return new PaymentConfirmationDto
+            {
+                PaymentId = payment.PaymentId,
+                CustomerId = payment.CustomerId,
+                LoanId = payment.LoanId,
+                EmiId = payment.EmiId ?? order.EmiId,
+                Amount = payment.Amount,
+                PaymentReference = payment.PaymentReference,
+                PaymentMethod = payment.PaymentMethod,
+                PaymentStatus = payment.PaymentStatus,
+                PaymentDate = payment.PaymentDate,
+                ConfirmedAt = order.VerifiedAt ?? payment.CreatedAt
+            };
+        }
+
+        private sealed class RazorpayOrderResponse
+        {
+            public string Id { get; set; } = string.Empty;
         }
     }
 }

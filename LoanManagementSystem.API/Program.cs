@@ -1,3 +1,4 @@
+
 using LoanManagementSystem.API.Middleware;
 using LoanManagementSystem.Application.Interfaces;
 using LoanManagementSystem.Application.Service;
@@ -14,20 +15,44 @@ using LoanManagementSystem.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+<<<<<<< HEAD
 using QuestPDF.Infrastructure;
 using System.Net.Http.Headers;
+=======
+>>>>>>> origin/feature_dev1
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-// Enable console logging for easier debugging
+
 builder.Logging.AddConsole();
 
-// Controllers and common middleware
+// JWT configuration
+var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+if (string.IsNullOrWhiteSpace(jwtKey) ||
+    Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key must contain at least 32 bytes.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtIssuer) ||
+    string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException(
+        "Jwt:Issuer and Jwt:Audience must be configured.");
+}
+
+// Controllers, Swagger and error handling
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-// CORS configuration for Angular frontend
+// Angular CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AngularPolicy", policy =>
@@ -39,29 +64,39 @@ builder.Services.AddCors(options =>
     });
 });
 
-// JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+// JWT authentication
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? string.Empty))
-        };
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwtIssuer,
+                ValidAudience = jwtAudience,
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(jwtKey))
+            };
     });
 
 builder.Services.AddAuthorization();
 
 // Database
+var connectionString =
+    builder.Configuration.GetConnectionString("reservation");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "ConnectionStrings:reservation is missing.");
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString));
 
 // Repositories
 builder.Services.AddScoped<ILoanCalculationRepository, LoanCalculationRepository>();
@@ -71,8 +106,10 @@ builder.Services.AddScoped<IRiskAssessmentRepository, RiskAssessmentRepository>(
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IKycDocumentRepository, KycDocumentRepository>();
 builder.Services.AddScoped<ICustomerEligibilityRepository, CustomerEligibilityRepository>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 
 // Application services
+builder.Services.AddScoped<ICustomerEligibilityService, CustomerEligibilityService>();
 builder.Services.AddScoped<IEmiCalculatorService, EmiCalculatorService>();
 builder.Services.AddScoped<ICalculationHistoryService, CalculationHistoryService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
@@ -80,87 +117,47 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IKycDocumentService, KycDocumentService>();
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-
 builder.Services.AddScoped<IPaymentService, PaymentService>();
-
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-
-builder.Services.AddScoped<IPaymentService, PaymentService>();
-
-// 4.3 Outstanding Balance
-builder.Services.AddScoped<
-    IOutstandingBalanceService,
-    OutstandingBalanceService>();
-
-builder.Services.AddHttpClient<
-    ILoanModuleClient,
-    LoanModuleClient>(client =>
-    {
-        client.BaseAddress = new Uri(
-            builder.Configuration["LoanModuleApi:BaseUrl"]
-            ?? throw new InvalidOperationException(
-                "LoanModuleApi:BaseUrl is missing"));
-    });
-builder.Services.AddScoped<
-    IAdvancedPaymentService,
-    AdvancedPaymentService>();
-
-builder.Services.AddScoped<
-    IPaymentNotificationSender,
-    PaymentNotificationSender>();
-
-builder.Services.AddScoped<
-    IPaymentNotificationQueue,
-    PaymentNotificationQueue>();
-
-var customerApiUrl =
-    builder.Configuration["CustomerApi:BaseUrl"];
-
-if (string.IsNullOrWhiteSpace(customerApiUrl))
-{
-    throw new InvalidOperationException(
-        "Configure CustomerApi:BaseUrl in appsettings.json");
-}
-
-builder.Services.AddHttpClient<
-    ICustomerContactClient,
-    CustomerContactClient>(client =>
-    {
-        var baseUrl = builder.Configuration["CustomerApi:BaseUrl"]
-       ?? throw new InvalidOperationException(
-           "CustomerApi:BaseUrl is missing");
-
-        client.BaseAddress = new Uri(baseUrl);
-    });
-
-builder.Services.AddHostedService<NotificationWorker>();
-
-builder.Services.AddHttpClient<
-    IRazorpayPaymentService,
-    RazorpayPaymentService>();
-
-
-
-// Other services
+builder.Services.AddScoped<IOutstandingBalanceService, OutstandingBalanceService>();
+builder.Services.AddScoped<IAdvancedPaymentService, AdvancedPaymentService>();
+builder.Services.AddScoped<IEmiAllocationService, EmiAllocationService>();
 builder.Services.AddScoped<JwtService>();
 
-builder.Services.AddHttpClient<IEmiModuleClient, EmiModuleClient>(
-    (sp, client) =>
+// Loan module HTTP client
+builder.Services.AddHttpClient<ILoanModuleClient, LoanModuleClient>(
+    client =>
     {
-        var config = sp.GetRequiredService<IConfiguration>();
+        client.BaseAddress = GetRequiredBaseUri(
+            builder.Configuration, "LoanModuleApi:BaseUrl");
+    });
 
-        string url = config["EmiModule:BaseUrl"]
-            ?? throw new InvalidOperationException(
-                "EmiModule:BaseUrl is missing");
+// Customer contact HTTP client
+builder.Services.AddHttpClient<ICustomerContactClient, CustomerContactClient>(
+    client =>
+    {
+        client.BaseAddress = GetRequiredBaseUri(
+            builder.Configuration, "CustomerApi:BaseUrl");
+    });
 
-        client.BaseAddress = new Uri(url);
+// EMI module HTTP client
+builder.Services.AddHttpClient<IEmiModuleClient, EmiModuleClient>(
+    client =>
+    {
+        client.BaseAddress = GetRequiredBaseUri(
+            builder.Configuration, "EmiModule:BaseUrl");
+
         client.Timeout = TimeSpan.FromSeconds(30);
     });
 
-builder.Services.AddScoped<
-    IEmiAllocationService,
-    EmiAllocationService>();
+// Payment notifications
+builder.Services.AddScoped<IPaymentNotificationSender, PaymentNotificationSender>();
+builder.Services.AddScoped<IPaymentNotificationQueue, PaymentNotificationQueue>();
+
+// Background worker
+builder.Services.AddHostedService<NotificationWorker>();
+
+// Razorpay
+builder.Services.AddHttpClient<IRazorpayPaymentService, RazorpayPaymentService>();
 
 // Module 4.7 - Payment Receipt Generation
 
@@ -238,36 +235,28 @@ QuestPDF.Settings.License = LicenseType.Community;
 
 var app = builder.Build();
 
-// Log a masked Razorpay KeyId at startup for verification (never log secrets).
-try
+// Log only a masked Razorpay KeyId
+var razorpayKeyId =
+    builder.Configuration["Razorpay:KeyId"]
+    ?? Environment.GetEnvironmentVariable("RAZORPAY_KEY_ID");
+
+if (!string.IsNullOrWhiteSpace(razorpayKeyId))
 {
-    var runtimeKeyId = builder.Configuration["Razorpay:KeyId"]
-        ?? Environment.GetEnvironmentVariable("RAZORPAY_KEY_ID");
+    var maskedKey = razorpayKeyId.Length <= 8
+        ? new string('*', razorpayKeyId.Length)
+        : razorpayKeyId[..4]
+          + new string('*', razorpayKeyId.Length - 8)
+          + razorpayKeyId[^4..];
 
-    if (!string.IsNullOrWhiteSpace(runtimeKeyId))
-    {
-        string masked;
-        if (runtimeKeyId.Length <= 8)
-            masked = new string('*', runtimeKeyId.Length);
-        else
-            masked = runtimeKeyId.Substring(0, 4)
-                     + new string('*', Math.Max(0, runtimeKeyId.Length - 8))
-                     + runtimeKeyId.Substring(runtimeKeyId.Length - 4);
-
-        app.Logger.LogInformation("Razorpay KeyId in use (masked): {KeyId}", masked);
-    }
-    else
-    {
-        app.Logger.LogWarning("Razorpay KeyId not configured.");
-    }
+    app.Logger.LogInformation(
+        "Razorpay KeyId configured (masked): {KeyId}", maskedKey);
 }
-catch (Exception ex)
+else
 {
-    // Ensure startup doesn't crash due to logging; configuration validation will handle missing keys later.
-    app.Logger.LogWarning(ex, "Failed to read Razorpay KeyId for masked logging.");
+    app.Logger.LogWarning("Razorpay KeyId is not configured.");
 }
 
-// Show detailed exceptions when running in Development to aid debugging
+// Exception handling
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -277,18 +266,35 @@ else
     app.UseExceptionHandler();
 }
 
+// Swagger
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.UseHttpsRedirection();
-
-// Log request bodies to help diagnose malformed JSON / model binding problems.
-app.UseMiddleware<LoanManagementSystem.API.Middleware.RequestBodyLoggingMiddleware>();
-
 app.UseRouting();
-
 app.UseCors("AngularPolicy");
-
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+// Validate HTTP client URLs
+static Uri GetRequiredBaseUri(
+    IConfiguration configuration,
+    string configurationKey)
+{
+    var url = configuration[configurationKey];
+
+    if (string.IsNullOrWhiteSpace(url) ||
+        !Uri.TryCreate(url, UriKind.Absolute, out var baseUri) ||
+        (baseUri.Scheme != Uri.UriSchemeHttp &&
+         baseUri.Scheme != Uri.UriSchemeHttps))
+    {
+        throw new InvalidOperationException(
+            $"Configure a valid HTTP/HTTPS URL for '{configurationKey}' in appsettings.json.");
+    }
+
+    return baseUri;
+}

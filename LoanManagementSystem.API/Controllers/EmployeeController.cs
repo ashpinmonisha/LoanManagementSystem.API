@@ -1,4 +1,5 @@
-﻿using LoanManagementSystem.Application.Dtos;
+﻿
+using LoanManagementSystem.Application.Dtos;
 using LoanManagementSystem.Application.ServiceInterface;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,8 @@ namespace LoanManagementSystem.API.Controllers
     {
         private readonly IEmployeeService _employeeService;
 
-        public EmployeeController(IEmployeeService employeeService)
+        public EmployeeController(
+            IEmployeeService employeeService)
         {
             _employeeService = employeeService;
         }

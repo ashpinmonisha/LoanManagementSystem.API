@@ -16,6 +16,78 @@ namespace LoanManagementSystem.API.Controllers
             _service = service;
         }
 
+        [HttpPost("partial-payment")]
+        public async Task<IActionResult> AllocatePartialPayment(
+            [FromBody] PartialPaymentDto dto)
+        {
+            try
+            {
+                return Ok(await _service.AllocatePartialPaymentAsync(dto));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("reconcile")]
+        public async Task<IActionResult> ReconcilePayment(
+            [FromBody] ReconcilePaymentDto dto)
+        {
+            try
+            {
+                var reconciled = await _service.ReconcilePaymentAsync(dto);
+                return reconciled
+                    ? Ok(new { reconciled = true })
+                    : Conflict(new { message = "Payment is not completed." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("close/{loanId:int}")]
+        public async Task<IActionResult> CloseLoan(int loanId)
+        {
+            try
+            {
+                return Ok(new
+                {
+                    loanId,
+                    closed = await _service.CloseLoanAsync(loanId)
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+        }
+
         // 4.4.1 Overdue Management
         [HttpGet("overdue/{loanId:int}")]
         public async Task<IActionResult> GetOverdueEmis(int loanId)

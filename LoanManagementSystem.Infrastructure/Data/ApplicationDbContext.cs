@@ -110,6 +110,10 @@ namespace LoanManagementSystem.Infrastructure.Data
                 .Property(x => x.ExistingMonthlyObligations)
                 .HasPrecision(18, 2);
 
+            modelBuilder.Entity<CustomerEligibilityProfile>()
+                .HasIndex(x => x.CustomerId)
+                .IsUnique();
+
             // MODULE 3: EMI & Interest
             modelBuilder.Entity<LoanCalculationRecord>(entity =>
             {

@@ -30,11 +30,25 @@ public class KycDocumentService : IKycDocumentService
             throw new KeyNotFoundException("Customer not found.");
         }
 
+        if (string.IsNullOrWhiteSpace(dto.DocumentType) ||
+            string.IsNullOrWhiteSpace(dto.DocumentNumber) ||
+            string.IsNullOrWhiteSpace(dto.FilePath))
+        {
+            throw new ArgumentException(
+                "Document type, document number, and file are required.");
+        }
+
+        if (dto.ExpiryDate.HasValue &&
+            dto.ExpiryDate.Value.Date <= DateTime.UtcNow.Date)
+        {
+            throw new ArgumentException("Document expiry date must be in the future.");
+        }
+
         var document = new KycDocument
         {
             CustomerId = dto.CustomerId,
-            DocumentType = dto.DocumentType,
-            DocumentNumber = dto.DocumentNumber,
+            DocumentType = dto.DocumentType.Trim(),
+            DocumentNumber = dto.DocumentNumber.Trim(),
             FilePath = dto.FilePath,
             VerificationStatus = "Pending",
             UploadedAt = DateTime.UtcNow,
@@ -53,6 +67,24 @@ public class KycDocumentService : IKycDocumentService
             document.VerificationStatus,
             document.UploadedAt
         };
+    }
+
+    public async Task<string> GetDocumentFilePathAsync(int documentId)
+    {
+        var document = await _kycRepository.GetByIdAsync(documentId);
+
+        if (document == null || string.IsNullOrWhiteSpace(document.FilePath))
+            throw new KeyNotFoundException("KYC document file not found.");
+
+        return document.FilePath;
+    }
+
+    public async Task<bool> CustomerOwnsDocumentAsync(
+        int documentId,
+        int customerId)
+    {
+        var document = await _kycRepository.GetByIdAsync(documentId);
+        return document?.CustomerId == customerId;
     }
 
     public async Task<object> GetDocumentsByCustomerIdAsync(
@@ -131,6 +163,14 @@ public class KycDocumentService : IKycDocumentService
             throw new KeyNotFoundException("KYC document not found.");
         }
 
+        if (string.Equals(document.VerificationStatus, "Verified",
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(status, "Verified", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "A verified document cannot be moved back to another status.");
+        }
+
         var allowedStatuses = new[] { "Pending", "Verified", "Rejected" };
 
         if (!allowedStatuses.Contains(
@@ -144,7 +184,9 @@ public class KycDocumentService : IKycDocumentService
         document.VerificationStatus = allowedStatuses.First(
             s => s.Equals(status, StringComparison.OrdinalIgnoreCase));
 
-        document.Remarks = remarks;
+        document.Remarks = string.IsNullOrWhiteSpace(remarks)
+            ? null
+            : remarks.Trim();
 
         await _kycRepository.SaveChangesAsync();
 

@@ -1,4 +1,6 @@
 ﻿using LoanManagementSystem.Application.DTOs.Payment;
+using LoanManagementSystem.Application.DTOs;
+using LoanManagementSystem.Application.Interfaces;
 using LoanManagementSystem.Application.ServiceInterface;
 using LoanManagementSystem.Domain.Entities;
 
@@ -8,13 +10,16 @@ namespace LoanManagementSystem.Application.Services
     {
         private readonly IPaymentRepository _paymentRepository;
         private readonly ILoanModuleClient _loanClient;
+        private readonly IEmiAllocationService _emiAllocationService;
 
         public AdvancedPaymentService(
             IPaymentRepository paymentRepository,
-            ILoanModuleClient loanClient)
+            ILoanModuleClient loanClient,
+            IEmiAllocationService emiAllocationService)
         {
             _paymentRepository = paymentRepository;
             _loanClient = loanClient;
+            _emiAllocationService = emiAllocationService;
         }
 
         // 4.4.1 Overdue EMI Identification
@@ -93,29 +98,89 @@ namespace LoanManagementSystem.Application.Services
         }
 
         // Requires verified payment + allocation workflow
-        public Task<EmiAllocationResult> AllocatePartialPaymentAsync(
+        public async Task<EmiAllocationResult> AllocatePartialPaymentAsync(
             PartialPaymentDto dto)
         {
-            throw new NotImplementedException(
-                "Partial payment requires verified payment " +
-                "and idempotent EMI allocation integration.");
+            if (dto.LoanId <= 0 || dto.EmiId <= 0 || dto.CustomerId <= 0 ||
+                dto.Amount <= 0 || string.IsNullOrWhiteSpace(dto.PaymentReference))
+            {
+                throw new ArgumentException("Valid payment, loan, EMI, customer, and amount are required.");
+            }
+
+            var payment = await _paymentRepository
+                .GetByReferenceAsync(dto.PaymentReference.Trim());
+
+            if (payment == null)
+                throw new KeyNotFoundException("Payment not found.");
+
+            if (payment.CustomerId != dto.CustomerId || payment.LoanId != dto.LoanId)
+                throw new InvalidOperationException("Payment does not belong to the supplied customer and loan.");
+
+            if (payment.Amount != dto.Amount)
+                throw new InvalidOperationException("Payment amount does not match the recorded payment.");
+
+            var allocation = await _emiAllocationService.AllocateAsync(
+                new AllocateEmiPaymentDto
+                {
+                    PaymentId = payment.PaymentId,
+                    EmiId = dto.EmiId
+                });
+
+            payment.EmiId = dto.EmiId;
+            await _paymentRepository.SaveChangesAsync();
+
+            return new EmiAllocationResult
+            {
+                EmiId = allocation.EmiId,
+                AllocatedAmount = allocation.AllocatedAmount,
+                RemainingAmount = allocation.RemainingEmiAmount,
+                Success = allocation.AllocationStatus == "Applied"
+            };
         }
 
         // Requires trusted payment-provider verification
-        public Task<bool> ReconcilePaymentAsync(
+        public async Task<bool> ReconcilePaymentAsync(
             ReconcilePaymentDto dto)
         {
-            throw new NotImplementedException(
-                "Reconciliation requires provider verification " +
-                "and an idempotent payment state transition.");
+            if (dto == null || string.IsNullOrWhiteSpace(dto.PaymentReference) ||
+                string.IsNullOrWhiteSpace(dto.ProviderTransactionId))
+                throw new ArgumentException("Payment reference and provider transaction ID are required.");
+
+            var payment = await _paymentRepository
+                .GetByReferenceAsync(dto.PaymentReference.Trim());
+
+            if (payment == null)
+                throw new KeyNotFoundException("Payment not found.");
+
+            if (!string.Equals(payment.PaymentReference,
+                    dto.ProviderTransactionId.Trim(),
+                    StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Provider transaction does not match the recorded payment reference.");
+
+            return string.Equals(payment.PaymentStatus,
+                "Completed", StringComparison.OrdinalIgnoreCase);
         }
 
         // Requires loan closure integration and concurrency protection
-        public Task<bool> CloseLoanAsync(int loanId)
+        public async Task<bool> CloseLoanAsync(int loanId)
         {
-            throw new NotImplementedException(
-                "Loan closure requires verified balances " +
-                "and an idempotent loan closure operation.");
+            if (loanId <= 0)
+                throw new ArgumentException("Invalid Loan ID.");
+
+            var balance = await _loanClient.GetLoanBalanceAsync(loanId);
+
+            if (balance == null)
+                throw new KeyNotFoundException("Loan not found.");
+
+            if (balance.RemainingPrincipal > 0 || balance.RemainingInterest > 0)
+                throw new InvalidOperationException(
+                    "Loan cannot be closed while an outstanding balance remains.");
+
+            if (string.Equals(balance.Status, "Closed", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return await _loanClient.CloseLoanAsync(loanId);
         }
     }
 }

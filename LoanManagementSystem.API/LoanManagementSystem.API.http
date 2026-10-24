@@ -1,6 +1,132 @@
 @LoanManagementSystem.API_HostAddress = http://localhost:5278
+@customerToken = paste-customer-jwt-here
+@adminToken = paste-admin-jwt-here
+@customerId = 1
+@loanId = 1
+@emiId = 1
+@documentId = 1
 
-GET {{LoanManagementSystem.API_HostAddress}}/weatherforecast/
-Accept: application/json
+### Register customer
+POST {{LoanManagementSystem.API_HostAddress}}/api/Customer/register
+Content-Type: application/json
 
-###
+{
+  "fullName": "Akash Customer",
+  "email": "akash.customer@example.com",
+  "phoneNumber": "+919876543210",
+  "password": "Password123!",
+  "confirmPassword": "Password123!",
+  "dateOfBirth": "1995-01-15",
+  "gender": "Other"
+}
+
+### Login customer
+POST {{LoanManagementSystem.API_HostAddress}}/api/Customer/login
+Content-Type: application/json
+
+{
+  "email": "akash.customer@example.com",
+  "password": "Password123!"
+}
+
+### Get customer profile
+GET {{LoanManagementSystem.API_HostAddress}}/api/Customer/profile
+Authorization: Bearer {{customerToken}}
+
+### Update customer profile
+PUT {{LoanManagementSystem.API_HostAddress}}/api/Customer/profile
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Akash Customer Updated",
+  "phoneNumber": "+919876543210",
+  "dateOfBirth": "1995-01-15",
+  "gender": "Other"
+}
+
+### Save customer eligibility
+POST {{LoanManagementSystem.API_HostAddress}}/api/CustomerEligibility/save
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "customerId": {{customerId}},
+  "monthlyIncome": 75000,
+  "employmentType": "Salaried",
+  "employmentStatus": "Employed",
+  "employerName": "Example Technologies",
+  "employmentExperienceYears": 5,
+  "creditScore": 760,
+  "existingLoanCount": 0,
+  "existingMonthlyObligations": 0,
+  "existingLoanAmount": 0,
+  "financialProfileRemarks": "Stable monthly income"
+}
+
+### Get customer eligibility
+GET {{LoanManagementSystem.API_HostAddress}}/api/CustomerEligibility/{{customerId}}
+Authorization: Bearer {{customerToken}}
+
+### Check customer eligibility
+GET {{LoanManagementSystem.API_HostAddress}}/api/CustomerEligibility/{{customerId}}/check
+Authorization: Bearer {{customerToken}}
+
+### Upload KYC document
+# Replace the file path with a real local PDF/JPG/JPEG/PNG file no larger than 5 MB.
+POST {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/upload
+Authorization: Bearer {{customerToken}}
+Content-Type: multipart/form-data; boundary=KycBoundary
+
+--KycBoundary
+Content-Disposition: form-data; name="documentType"
+
+NationalId
+--KycBoundary
+Content-Disposition: form-data; name="documentNumber"
+
+AKASH-123456
+--KycBoundary
+Content-Disposition: form-data; name="expiryDate"
+
+2035-12-31
+--KycBoundary
+Content-Disposition: form-data; name="file"; filename="identity-document.pdf"
+Content-Type: application/pdf
+
+< C:\path\to\identity-document.pdf
+--KycBoundary--
+
+### List my KYC documents
+GET {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/my-documents
+Authorization: Bearer {{customerToken}}
+
+### Get my KYC document metadata
+GET {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/{{documentId}}
+Authorization: Bearer {{customerToken}}
+
+### Download my KYC document
+GET {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/{{documentId}}/file
+Authorization: Bearer {{customerToken}}
+
+### Admin list pending KYC documents
+GET {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/pending
+Authorization: Bearer {{adminToken}}
+
+### Admin verify KYC document
+PUT {{LoanManagementSystem.API_HostAddress}}/api/KycDocument/{{documentId}}/verification
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "Verified",
+  "remarks": "Identity document reviewed successfully"
+}
+
+### Get overdue EMIs
+GET {{LoanManagementSystem.API_HostAddress}}/api/AdvancedPayments/overdue/{{loanId}}
+Authorization: Bearer {{adminToken}}
+
+### Close loan after outstanding balance reaches zero
+POST {{LoanManagementSystem.API_HostAddress}}/api/AdvancedPayments/close/{{loanId}}
+Authorization: Bearer {{adminToken}}
