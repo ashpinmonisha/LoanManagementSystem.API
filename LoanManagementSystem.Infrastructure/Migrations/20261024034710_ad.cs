@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LoanManagementSystem.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class loan : Migration
+    public partial class ad : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -29,6 +29,28 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Customers", x => x.CustomerId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EmiPaymentAllocations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PaymentId = table.Column<int>(type: "int", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    LoanId = table.Column<int>(type: "int", nullable: false),
+                    EmiId = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    IdempotencyKey = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    LastError = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AppliedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EmiPaymentAllocations", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -87,6 +109,112 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LoanCalculations", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PaymentAllocations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PaymentId = table.Column<int>(type: "int", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    LoanId = table.Column<int>(type: "int", nullable: false),
+                    EmiId = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    IdempotencyKey = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    LastError = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AppliedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PaymentAllocations", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PaymentNotifications",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PaymentId = table.Column<int>(type: "int", nullable: false),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    Channel = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Destination = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: false),
+                    Subject = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Attempts = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    NextAttemptAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastError = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PaymentNotifications", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Payments",
+                columns: table => new
+                {
+                    PaymentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    LoanId = table.Column<int>(type: "int", nullable: false),
+                    EmiId = table.Column<int>(type: "int", nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PaymentMethod = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    PaymentReference = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PaymentStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Payments", x => x.PaymentId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Penalties",
+                columns: table => new
+                {
+                    PenaltyId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    LoanId = table.Column<int>(type: "int", nullable: false),
+                    EmiId = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PaidAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    DaysOverdue = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Penalties", x => x.PenaltyId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RazorpayPaymentOrders",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: false),
+                    LoanId = table.Column<int>(type: "int", nullable: false),
+                    EmiId = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    RazorpayOrderId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    RazorpayPaymentId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    VerifiedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RazorpayPaymentOrders", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -184,9 +312,64 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_EmiPaymentAllocations_IdempotencyKey",
+                table: "EmiPaymentAllocations",
+                column: "IdempotencyKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_EmiPaymentAllocations_PaymentId",
+                table: "EmiPaymentAllocations",
+                column: "PaymentId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_KycDocuments_CustomerId",
                 table: "KycDocuments",
                 column: "CustomerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PaymentAllocations_IdempotencyKey",
+                table: "PaymentAllocations",
+                column: "IdempotencyKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PaymentAllocations_PaymentId",
+                table: "PaymentAllocations",
+                column: "PaymentId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PaymentNotifications_PaymentId_Channel",
+                table: "PaymentNotifications",
+                columns: new[] { "PaymentId", "Channel" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_PaymentReference",
+                table: "Payments",
+                column: "PaymentReference",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Penalties_EmiId",
+                table: "Penalties",
+                column: "EmiId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RazorpayPaymentOrders_RazorpayOrderId",
+                table: "RazorpayPaymentOrders",
+                column: "RazorpayOrderId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RazorpayPaymentOrders_RazorpayPaymentId",
+                table: "RazorpayPaymentOrders",
+                column: "RazorpayPaymentId",
+                unique: true,
+                filter: "[RazorpayPaymentId] IS NOT NULL");
         }
 
         /// <inheritdoc />
@@ -194,6 +377,9 @@ namespace LoanManagementSystem.Infrastructure.Migrations
         {
             migrationBuilder.DropTable(
                 name: "CustomerEligibilityProfiles");
+
+            migrationBuilder.DropTable(
+                name: "EmiPaymentAllocations");
 
             migrationBuilder.DropTable(
                 name: "Employees");
@@ -206,6 +392,21 @@ namespace LoanManagementSystem.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "LoanCalculations");
+
+            migrationBuilder.DropTable(
+                name: "PaymentAllocations");
+
+            migrationBuilder.DropTable(
+                name: "PaymentNotifications");
+
+            migrationBuilder.DropTable(
+                name: "Payments");
+
+            migrationBuilder.DropTable(
+                name: "Penalties");
+
+            migrationBuilder.DropTable(
+                name: "RazorpayPaymentOrders");
 
             migrationBuilder.DropTable(
                 name: "RiskAssessments");
