@@ -44,8 +44,16 @@ namespace LoanManagementSystem.API.Controllers
             int loanId,
             CancellationToken cancellationToken)
         {
-            return Ok(await _service.GetOutstandingAsync(
-                loanId, cancellationToken));
+            if (loanId <= 0)
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID"
+                });
+
+            var result = await _service.GetOutstandingAsync(
+                loanId, cancellationToken);
+
+            return Ok(result);
         }
     }
 }

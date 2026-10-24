@@ -35,6 +35,15 @@ namespace LoanManagementSystem.Infrastructure.Data
         // MODULE 3: EMI & Interest
         public DbSet<LoanCalculationRecord> LoanCalculations { get; set; }
 
+        public DbSet<PaymentReceipt> PaymentReceipts { get; set; }
+
+
+        public DbSet<PaymentRefund> PaymentRefunds { get; set; }
+
+
+        public DbSet<PaymentReconciliation> PaymentReconciliations
+        { get; set; }
+
 
         public DbSet<RazorpayPaymentOrder> RazorpayPaymentOrders
     => Set<RazorpayPaymentOrder>();
@@ -238,6 +247,89 @@ namespace LoanManagementSystem.Infrastructure.Data
 
                 entity.HasIndex(x => x.IdempotencyKey)
                     .IsUnique();
+            });
+            modelBuilder.Entity<PaymentReceipt>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.ReceiptNumber)
+                    .HasMaxLength(80)
+                    .IsRequired();
+
+                entity.HasIndex(r => r.ReceiptNumber)
+                    .IsUnique();
+
+                entity.HasIndex(r => r.PaymentId)
+                    .IsUnique();
+
+                entity.Property(r => r.Amount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(r => r.PaymentMethod)
+                    .HasMaxLength(50);
+
+                entity.Property(r => r.PaymentReference)
+                    .HasMaxLength(200);
+            });
+            modelBuilder.Entity<PaymentRefund>(entity =>
+            {
+                entity.HasKey(r => r.RefundId);
+
+                entity.Property(r => r.Amount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(r => r.Status)
+                    .HasMaxLength(30)
+                    .IsRequired();
+
+                entity.Property(r => r.Reason)
+                    .HasMaxLength(500);
+
+                entity.Property(r => r.IdempotencyKey)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                entity.HasIndex(r => r.IdempotencyKey)
+                    .IsUnique();
+
+                entity.HasIndex(r => r.RazorpayRefundId)
+                    .IsUnique()
+                    .HasFilter("[RazorpayRefundId] IS NOT NULL");
+
+                entity.HasIndex(r => r.PaymentId);
+            });
+
+            modelBuilder.Entity<PaymentReconciliation>(entity =>
+            {
+                entity.HasKey(r => r.ReconciliationId);
+
+                entity.Property(r => r.DatabaseAmount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(r => r.GatewayAmount)
+                    .HasPrecision(18, 2);
+
+                entity.Property(r => r.PaymentReference)
+                    .HasMaxLength(150);
+
+                entity.Property(r => r.DatabaseStatus)
+                    .HasMaxLength(50);
+
+                entity.Property(r => r.GatewayStatus)
+                    .HasMaxLength(50);
+
+                entity.Property(r => r.Result)
+                    .HasMaxLength(50)
+                    .IsRequired();
+
+                entity.Property(r => r.Remarks)
+                    .HasMaxLength(1000);
+
+                entity.HasIndex(r => new
+                {
+                    r.PaymentId,
+                    r.ReconciliationId
+                });
             });
 
         }

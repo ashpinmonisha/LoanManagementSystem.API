@@ -8,11 +8,13 @@ using LoanManagementSystem.Infrastructure.Clients;
 using LoanManagementSystem.Infrastructure.Data;
 using LoanManagementSystem.Infrastructure.Notifications;
 using LoanManagementSystem.Infrastructure.Payments;
+using LoanManagementSystem.Infrastructure.Repositories;
 using LoanManagementSystem.Infrastructure.Repository;
 using LoanManagementSystem.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -159,6 +161,80 @@ builder.Services.AddHttpClient<IEmiModuleClient, EmiModuleClient>(
 builder.Services.AddScoped<
     IEmiAllocationService,
     EmiAllocationService>();
+
+// Module 4.7 - Payment Receipt Generation
+
+builder.Services.AddScoped<
+    IPaymentReceiptRepository,
+    PaymentReceiptRepository>();
+
+builder.Services.AddScoped<
+    IPaymentReceiptService,
+    PaymentReceiptService>();
+
+builder.Services.AddScoped<
+    IPaymentReceiptPdfGenerator,
+    PaymentReceiptPdfGenerator>();
+
+QuestPDF.Settings.License =
+    QuestPDF.Infrastructure.LicenseType.Community;
+
+// Module 4.8 - Payment Refund Management
+
+builder.Services.AddScoped<
+    IPaymentRefundRepository,
+    PaymentRefundRepository>();
+
+builder.Services.AddScoped<
+    IPaymentRefundService,
+    PaymentRefundService>();
+
+builder.Services.AddHttpClient<
+    IRefundGatewayClient,
+    RazorpayRefundClient>(client =>
+    {
+        client.BaseAddress =
+            new Uri("https://api.razorpay.com/v1/");
+
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
+
+// Module 4.9 - Payment Reconciliation
+
+builder.Services.AddScoped<
+    IPaymentReconciliationRepository,
+    PaymentReconciliationRepository>();
+
+builder.Services.AddScoped<
+    IPaymentReconciliationService,
+    PaymentReconciliationService>();
+
+builder.Services.AddHttpClient<
+    IPaymentGatewayVerificationClient,
+    RazorpayVerificationClient>(client =>
+    {
+        client.BaseAddress =
+            new Uri("https://api.razorpay.com/v1/");
+
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
+builder.Services.AddScoped<
+    IPaymentReportRepository,
+    PaymentReportRepository>();
+
+builder.Services.AddScoped<
+    IPaymentReportService,
+    PaymentReportService>();
+
+builder.Services.AddScoped<
+    IPaymentReportExporter,
+    PaymentReportExporter>();
+
+// Use Community only if your organization is eligible
+// under QuestPDF's licensing terms.
+QuestPDF.Settings.License = LicenseType.Community;
 
 var app = builder.Build();
 
