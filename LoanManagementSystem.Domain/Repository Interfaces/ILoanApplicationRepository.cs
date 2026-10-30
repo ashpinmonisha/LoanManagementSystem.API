@@ -11,6 +11,8 @@ namespace LoanManagementSystem.Domain.RepositoryInterfaces
 
         Task AddAsync(LoanApplication loanApplication);
 
+        Task InitializeBalanceAsync(LoanApplication loanApplication);
+
         Task SaveChangesAsync();
     }
 }

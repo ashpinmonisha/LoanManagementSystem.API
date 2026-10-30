@@ -54,6 +54,13 @@ namespace LoanManagementSystem.Infrastructure.Data
         public DbSet<PaymentAllocation> PaymentAllocations
     => Set<PaymentAllocation>();
 
+
+        public DbSet<LoanBalanceAccount> LoanBalanceAccounts
+    => Set<LoanBalanceAccount>();
+
+        public DbSet<LoanEmiInstallment> LoanEmiInstallments
+            => Set<LoanEmiInstallment>();
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder)
         {
@@ -334,6 +341,47 @@ namespace LoanManagementSystem.Infrastructure.Data
                     r.PaymentId,
                     r.ReconciliationId
                 });
+            });
+            modelBuilder.Entity<LoanBalanceAccount>(entity =>
+            {
+                entity.HasKey(x => x.LoanApplicationId);
+
+                entity.Property(x => x.RemainingPrincipal)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.RemainingInterest)
+                    .HasPrecision(18, 2);
+
+                entity.HasOne<LoanApplication>()
+                    .WithOne()
+                    .HasForeignKey<LoanBalanceAccount>(
+                        x => x.LoanApplicationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<LoanEmiInstallment>(entity =>
+            {
+                entity.HasKey(x => x.EmiId);
+
+                entity.Property(x => x.PrincipalDue)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.InterestDue)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.AmountPaid)
+                    .HasPrecision(18, 2);
+
+                entity.Property(x => x.Status)
+                    .HasMaxLength(30)
+                    .IsRequired();
+
+                entity.HasIndex(x => x.LoanApplicationId);
+
+                entity.HasOne<LoanApplication>()
+                    .WithMany()
+                    .HasForeignKey(x => x.LoanApplicationId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
         }

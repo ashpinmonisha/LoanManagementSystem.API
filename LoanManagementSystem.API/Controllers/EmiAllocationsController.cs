@@ -56,5 +56,14 @@ public class EmiAllocationsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (HttpRequestException)
+        {
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new
+                {
+                    message = "The EMI service could not be reached."
+                });
+        }
     }
 }

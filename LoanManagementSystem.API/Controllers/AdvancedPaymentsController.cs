@@ -1,11 +1,13 @@
 ﻿using LoanManagementSystem.Application.DTOs.Payment;
 using LoanManagementSystem.Application.ServiceInterface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LoanManagementSystem.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AdvancedPaymentsController : ControllerBase
     {
         private readonly IAdvancedPaymentService _service;
@@ -16,13 +18,20 @@ namespace LoanManagementSystem.API.Controllers
             _service = service;
         }
 
+        // ========================================
+        // 4.4.3 - PARTIAL PAYMENT
+        // ========================================
+        [Authorize(Roles = "Admin,Manager,Employee")]
         [HttpPost("partial-payment")]
         public async Task<IActionResult> AllocatePartialPayment(
             [FromBody] PartialPaymentDto dto)
         {
             try
             {
-                return Ok(await _service.AllocatePartialPaymentAsync(dto));
+                var result = await _service
+                    .AllocatePartialPaymentAsync(dto);
+
+                return Ok(result);
             }
             catch (KeyNotFoundException ex)
             {
@@ -38,40 +47,31 @@ namespace LoanManagementSystem.API.Controllers
             }
         }
 
+        // ========================================
+        // 4.4.4 - PAYMENT RECONCILIATION
+        // ========================================
+        [Authorize(Roles = "Admin,Manager")]
         [HttpPost("reconcile")]
         public async Task<IActionResult> ReconcilePayment(
             [FromBody] ReconcilePaymentDto dto)
         {
             try
             {
-                var reconciled = await _service.ReconcilePaymentAsync(dto);
-                return reconciled
-                    ? Ok(new { reconciled = true })
-                    : Conflict(new { message = "Payment is not completed." });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new { message = ex.Message });
-            }
-        }
+                bool reconciled = await _service
+                    .ReconcilePaymentAsync(dto);
 
-        [HttpPost("close/{loanId:int}")]
-        public async Task<IActionResult> CloseLoan(int loanId)
-        {
-            try
-            {
+                if (!reconciled)
+                {
+                    return Conflict(new
+                    {
+                        message = "Payment is not completed."
+                    });
+                }
+
                 return Ok(new
                 {
-                    loanId,
-                    closed = await _service.CloseLoanAsync(loanId)
+                    reconciled = true,
+                    message = "Payment reconciled successfully."
                 });
             }
             catch (KeyNotFoundException ex)
@@ -88,12 +88,62 @@ namespace LoanManagementSystem.API.Controllers
             }
         }
 
-        // 4.4.1 Overdue Management
+        // ========================================
+        // 4.4.5 - LOAN CLOSURE
+        // ========================================
+        [Authorize(Roles = "Admin,Manager")]
+        [HttpPost("close/{loanId:int}")]
+        public async Task<IActionResult> CloseLoan(int loanId)
+        {
+            if (loanId <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID."
+                });
+            }
+
+            try
+            {
+                bool closed = await _service.CloseLoanAsync(loanId);
+
+                return Ok(new
+                {
+                    loanId,
+                    closed,
+                    message = closed
+                        ? "Loan closed successfully."
+                        : "Loan closure was not completed."
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+        }
+
+        // ========================================
+        // 4.4.1 - OVERDUE EMI MANAGEMENT
+        // ========================================
+        [Authorize(Roles = "Admin,Manager,Employee")]
         [HttpGet("overdue/{loanId:int}")]
         public async Task<IActionResult> GetOverdueEmis(int loanId)
         {
             if (loanId <= 0)
-                return BadRequest("Invalid Loan ID");
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID."
+                });
+            }
 
             try
             {
@@ -106,9 +156,16 @@ namespace LoanManagementSystem.API.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
         }
 
-        // 4.4.2 Penalty
+        // ========================================
+        // 4.4.2 - CREATE PENALTY
+        // ========================================
+        [Authorize(Roles = "Admin,Manager")]
         [HttpPost("penalty")]
         public async Task<IActionResult> CreatePenalty(
             [FromBody] CreatePenaltyDto dto)
@@ -120,17 +177,30 @@ namespace LoanManagementSystem.API.Controllers
 
                 return StatusCode(201, new
                 {
-                    PenaltyId = penaltyId,
-                    Message = "Penalty created successfully"
+                    penaltyId,
+                    message = "Penalty created successfully."
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    message = ex.Message
                 });
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
             catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = ex.Message });
+                return Conflict(new
+                {
+                    message = ex.Message
+                });
             }
         }
     }

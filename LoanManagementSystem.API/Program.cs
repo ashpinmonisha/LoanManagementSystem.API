@@ -1,10 +1,12 @@
-
 using LoanManagementSystem.API.Middleware;
+
 using LoanManagementSystem.Application.Interfaces;
 using LoanManagementSystem.Application.Service;
 using LoanManagementSystem.Application.ServiceInterface;
 using LoanManagementSystem.Application.Services;
+
 using LoanManagementSystem.Domain.RepositoryInterfaces;
+
 using LoanManagementSystem.Infrastructure.Clients;
 using LoanManagementSystem.Infrastructure.Data;
 using LoanManagementSystem.Infrastructure.Notifications;
@@ -12,21 +14,36 @@ using LoanManagementSystem.Infrastructure.Payments;
 using LoanManagementSystem.Infrastructure.Repositories;
 using LoanManagementSystem.Infrastructure.Repository;
 using LoanManagementSystem.Infrastructure.Services;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-<<<<<<< HEAD
+
 using QuestPDF.Infrastructure;
-using System.Net.Http.Headers;
-=======
->>>>>>> origin/feature_dev1
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =====================================================
+// 1. CONTROLLERS - POSTMAN REST API
+// =====================================================
+
+builder.Services.AddControllers();
+
+builder.Services.AddProblemDetails();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// Allows internal module-to-module HTTP calls to reuse the caller's JWT.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<ForwardAuthorizationHandler>();
+
 builder.Logging.AddConsole();
 
-// JWT configuration
+// =====================================================
+// 2. JWT AUTHENTICATION
+// =====================================================
+
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -45,26 +62,6 @@ if (string.IsNullOrWhiteSpace(jwtIssuer) ||
         "Jwt:Issuer and Jwt:Audience must be configured.");
 }
 
-// Controllers, Swagger and error handling
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-
-// Angular CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AngularPolicy", policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
-
-// JWT authentication
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -76,18 +73,42 @@ builder.Services
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
+
                 ValidIssuer = jwtIssuer,
                 ValidAudience = jwtAudience,
+
                 IssuerSigningKey = new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(jwtKey))
+                    Encoding.UTF8.GetBytes(jwtKey)),
+
+                ClockSkew = TimeSpan.FromMinutes(1)
             };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext
+                    .RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("JwtAuthentication");
+
+                logger.LogWarning(
+                    context.Exception,
+                    "JWT authentication failed");
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
 
-// Database
-var connectionString =
-    builder.Configuration.GetConnectionString("reservation");
+// =====================================================
+// 3. SQL SERVER DATABASE
+// =====================================================
+
+var connectionString = builder.Configuration
+    .GetConnectionString("reservation");
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
@@ -95,71 +116,215 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "ConnectionStrings:reservation is missing.");
 }
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.Services.AddDbContext<ApplicationDbContext>(
+    options =>
+    {
+        options.UseSqlServer(connectionString);
+    });
 
-// Repositories
-builder.Services.AddScoped<ILoanCalculationRepository, LoanCalculationRepository>();
-builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-builder.Services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
-builder.Services.AddScoped<IRiskAssessmentRepository, RiskAssessmentRepository>();
-builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
-builder.Services.AddScoped<IKycDocumentRepository, KycDocumentRepository>();
-builder.Services.AddScoped<ICustomerEligibilityRepository, CustomerEligibilityRepository>();
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+// =====================================================
+// 4. ANGULAR CORS
+// =====================================================
 
-// Application services
-builder.Services.AddScoped<ICustomerEligibilityService, CustomerEligibilityService>();
-builder.Services.AddScoped<IEmiCalculatorService, EmiCalculatorService>();
-builder.Services.AddScoped<ICalculationHistoryService, CalculationHistoryService>();
-builder.Services.AddScoped<IEmployeeService, EmployeeService>();
-builder.Services.AddScoped<ILoanService, LoanService>();
-builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
-builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.AddScoped<IKycDocumentService, KycDocumentService>();
-builder.Services.AddScoped<IPaymentService, PaymentService>();
-builder.Services.AddScoped<IOutstandingBalanceService, OutstandingBalanceService>();
-builder.Services.AddScoped<IAdvancedPaymentService, AdvancedPaymentService>();
-builder.Services.AddScoped<IEmiAllocationService, EmiAllocationService>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AngularPolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// =====================================================
+// 5. REPOSITORIES
+// =====================================================
+
+// Loan Calculation
+builder.Services.AddScoped<
+    ILoanCalculationRepository,
+    LoanCalculationRepository>();
+
+// Employee
+builder.Services.AddScoped<
+    IEmployeeRepository,
+    EmployeeRepository>();
+
+// Loan
+builder.Services.AddScoped<
+    ILoanApplicationRepository,
+    LoanApplicationRepository>();
+
+// Risk Assessment
+builder.Services.AddScoped<
+    IRiskAssessmentRepository,
+    RiskAssessmentRepository>();
+
+// Customer
+builder.Services.AddScoped<
+    ICustomerRepository,
+    CustomerRepository>();
+
+// KYC
+builder.Services.AddScoped<
+    IKycDocumentRepository,
+    KycDocumentRepository>();
+
+// Customer Eligibility
+builder.Services.AddScoped<
+    ICustomerEligibilityRepository,
+    CustomerEligibilityRepository>();
+
+// Payment
+builder.Services.AddScoped<
+    IPaymentRepository,
+    PaymentRepository>();
+
+// MODULE 4.3 - LOAN BALANCE DATA READER
+builder.Services.AddScoped<
+    ILoanOutstandingDataReader,
+    LoanOutstandingDataReader>();
+
+// =====================================================
+// 6. APPLICATION SERVICES
+// =====================================================
+
+// Customer Eligibility
+builder.Services.AddScoped<
+    ICustomerEligibilityService,
+    CustomerEligibilityService>();
+
+// EMI Calculation
+builder.Services.AddScoped<
+    IEmiCalculatorService,
+    EmiCalculatorService>();
+
+// Calculation History
+builder.Services.AddScoped<
+    ICalculationHistoryService,
+    CalculationHistoryService>();
+
+// Employee
+builder.Services.AddScoped<
+    IEmployeeService,
+    EmployeeService>();
+
+// Loan
+builder.Services.AddScoped<
+    ILoanService,
+    LoanService>();
+
+// Risk
+builder.Services.AddScoped<
+    IRiskAssessmentService,
+    RiskAssessmentService>();
+
+// Customer
+builder.Services.AddScoped<
+    ICustomerService,
+    CustomerService>();
+
+// KYC
+builder.Services.AddScoped<
+    IKycDocumentService,
+    KycDocumentService>();
+
+// MODULE 4.1 - RECORD PAYMENT
+builder.Services.AddScoped<
+    IPaymentService,
+    PaymentService>();
+
+// MODULE 4.3 - OUTSTANDING BALANCE
+builder.Services.AddScoped<
+    IOutstandingBalanceService,
+    OutstandingBalanceService>();
+
+// MODULE 4.4 - ADVANCED PAYMENT
+builder.Services.AddScoped<
+    IAdvancedPaymentService,
+    AdvancedPaymentService>();
+
+// EMI Allocation
+builder.Services.AddScoped<
+    IEmiAllocationService,
+    EmiAllocationService>();
+
+// JWT Token Generator
 builder.Services.AddScoped<JwtService>();
 
-// Loan module HTTP client
-builder.Services.AddHttpClient<ILoanModuleClient, LoanModuleClient>(
-    client =>
-    {
-        client.BaseAddress = GetRequiredBaseUri(
-            builder.Configuration, "LoanModuleApi:BaseUrl");
-    });
+// =====================================================
+// 7. LOAN MODULE HTTP CLIENT
+// =====================================================
 
-// Customer contact HTTP client
-builder.Services.AddHttpClient<ICustomerContactClient, CustomerContactClient>(
-    client =>
+builder.Services.AddHttpClient<
+    ILoanModuleClient,
+    LoanModuleClient>(client =>
     {
         client.BaseAddress = GetRequiredBaseUri(
-            builder.Configuration, "CustomerApi:BaseUrl");
-    });
+            builder.Configuration,
+            "LoanModuleApi:BaseUrl");
 
-// EMI module HTTP client
-builder.Services.AddHttpClient<IEmiModuleClient, EmiModuleClient>(
-    client =>
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddHttpMessageHandler<ForwardAuthorizationHandler>();
+
+// =====================================================
+// 8. CUSTOMER CONTACT HTTP CLIENT
+// =====================================================
+
+builder.Services.AddHttpClient<
+    ICustomerContactClient,
+    CustomerContactClient>(client =>
     {
         client.BaseAddress = GetRequiredBaseUri(
-            builder.Configuration, "EmiModule:BaseUrl");
+            builder.Configuration,
+            "CustomerApi:BaseUrl");
 
         client.Timeout = TimeSpan.FromSeconds(30);
     });
 
-// Payment notifications
-builder.Services.AddScoped<IPaymentNotificationSender, PaymentNotificationSender>();
-builder.Services.AddScoped<IPaymentNotificationQueue, PaymentNotificationQueue>();
+// =====================================================
+// 9. EMI MODULE HTTP CLIENT
+// =====================================================
+// 9. EMI MODULE HTTP CLIENT
 
-// Background worker
+builder.Services.AddHttpClient<
+    IEmiModuleClient,
+    EmiModuleClient>(client =>
+    {
+        client.BaseAddress = GetRequiredBaseUri(
+            builder.Configuration,
+            "EmiModule:BaseUrl");
+
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddHttpMessageHandler<ForwardAuthorizationHandler>();
+
+// =====================================================
+// 10. PAYMENT NOTIFICATIONS
+// =====================================================
+
+builder.Services.AddScoped<
+    IPaymentNotificationSender,
+    PaymentNotificationSender>();
+
+builder.Services.AddScoped<
+    IPaymentNotificationQueue,
+    PaymentNotificationQueue>();
+
 builder.Services.AddHostedService<NotificationWorker>();
 
-// Razorpay
-builder.Services.AddHttpClient<IRazorpayPaymentService, RazorpayPaymentService>();
+// =====================================================
+// 11. RAZORPAY PAYMENTS
+// =====================================================
 
-// Module 4.7 - Payment Receipt Generation
+builder.Services.AddHttpClient<
+    IRazorpayPaymentService,
+    RazorpayPaymentService>();
+
+// =====================================================
+// 12. MODULE 4.7 - PAYMENT RECEIPT
+// =====================================================
 
 builder.Services.AddScoped<
     IPaymentReceiptRepository,
@@ -173,10 +338,9 @@ builder.Services.AddScoped<
     IPaymentReceiptPdfGenerator,
     PaymentReceiptPdfGenerator>();
 
-QuestPDF.Settings.License =
-    QuestPDF.Infrastructure.LicenseType.Community;
-
-// Module 4.8 - Payment Refund Management
+// =====================================================
+// 13. MODULE 4.8 - PAYMENT REFUND
+// =====================================================
 
 builder.Services.AddScoped<
     IPaymentRefundRepository,
@@ -196,8 +360,9 @@ builder.Services.AddHttpClient<
         client.Timeout = TimeSpan.FromSeconds(30);
     });
 
-
-// Module 4.9 - Payment Reconciliation
+// =====================================================
+// 14. MODULE 4.9 - PAYMENT RECONCILIATION
+// =====================================================
 
 builder.Services.AddScoped<
     IPaymentReconciliationRepository,
@@ -217,6 +382,10 @@ builder.Services.AddHttpClient<
         client.Timeout = TimeSpan.FromSeconds(30);
     });
 
+// =====================================================
+// 15. MODULE 4.10 - PAYMENT REPORTS
+// =====================================================
+
 builder.Services.AddScoped<
     IPaymentReportRepository,
     PaymentReportRepository>();
@@ -229,34 +398,47 @@ builder.Services.AddScoped<
     IPaymentReportExporter,
     PaymentReportExporter>();
 
-// Use Community only if your organization is eligible
-// under QuestPDF's licensing terms.
+// QuestPDF License
 QuestPDF.Settings.License = LicenseType.Community;
 
-var app = builder.Build();
+// =====================================================
+// 16. BUILD APPLICATION AND SHOW DI ERRORS
+// =====================================================
 
-// Log only a masked Razorpay KeyId
-var razorpayKeyId =
-    builder.Configuration["Razorpay:KeyId"]
-    ?? Environment.GetEnvironmentVariable("RAZORPAY_KEY_ID");
+WebApplication app;
 
-if (!string.IsNullOrWhiteSpace(razorpayKeyId))
+try
 {
-    var maskedKey = razorpayKeyId.Length <= 8
-        ? new string('*', razorpayKeyId.Length)
-        : razorpayKeyId[..4]
-          + new string('*', razorpayKeyId.Length - 8)
-          + razorpayKeyId[^4..];
-
-    app.Logger.LogInformation(
-        "Razorpay KeyId configured (masked): {KeyId}", maskedKey);
+    app = builder.Build();
 }
-else
+catch (Exception ex)
 {
-    app.Logger.LogWarning("Razorpay KeyId is not configured.");
+    Console.ForegroundColor = ConsoleColor.Red;
+
+    Console.WriteLine(
+        "========== APPLICATION STARTUP FAILED ==========");
+
+    Console.WriteLine(ex.ToString());
+
+    if (ex is AggregateException aggregateException)
+    {
+        foreach (var inner in
+            aggregateException.Flatten().InnerExceptions)
+        {
+            Console.WriteLine(
+                "DEPENDENCY ERROR: " + inner.Message);
+        }
+    }
+
+    Console.ResetColor();
+
+    throw;
 }
 
-// Exception handling
+// =====================================================
+// 17. EXCEPTION HANDLING
+// =====================================================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -264,23 +446,37 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler();
+    app.UseHttpsRedirection();
 }
 
-// Swagger
-app.UseSwagger();
-app.UseSwaggerUI();
+// =====================================================
+// 18. MIDDLEWARE
+// =====================================================
 
-app.UseHttpsRedirection();
 app.UseRouting();
+
 app.UseCors("AngularPolicy");
+
 app.UseAuthentication();
+
 app.UseAuthorization();
+
+// =====================================================
+// 19. MAP API CONTROLLERS
+// =====================================================
 
 app.MapControllers();
 
+// =====================================================
+// 20. START THE APPLICATION
+// =====================================================
+
 app.Run();
 
-// Validate HTTP client URLs
+// =====================================================
+// HELPER - VALIDATE EXTERNAL API URLs
+// =====================================================
+
 static Uri GetRequiredBaseUri(
     IConfiguration configuration,
     string configurationKey)
@@ -288,12 +484,15 @@ static Uri GetRequiredBaseUri(
     var url = configuration[configurationKey];
 
     if (string.IsNullOrWhiteSpace(url) ||
-        !Uri.TryCreate(url, UriKind.Absolute, out var baseUri) ||
+        !Uri.TryCreate(
+            url,
+            UriKind.Absolute,
+            out var baseUri) ||
         (baseUri.Scheme != Uri.UriSchemeHttp &&
          baseUri.Scheme != Uri.UriSchemeHttps))
     {
         throw new InvalidOperationException(
-            $"Configure a valid HTTP/HTTPS URL for '{configurationKey}' in appsettings.json.");
+            $"Configure a valid HTTP/HTTPS URL for '{configurationKey}'.");
     }
 
     return baseUri;

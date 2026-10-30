@@ -40,6 +40,28 @@ namespace LoanManagementSystem.Infrastructure.Repository
                 .AddAsync(loanApplication);
         }
 
+        public async Task InitializeBalanceAsync(
+            LoanApplication loanApplication)
+        {
+            var balanceExists = await _context.LoanBalanceAccounts
+                .AnyAsync(x => x.LoanApplicationId ==
+                               loanApplication.LoanApplicationId);
+
+            if (balanceExists)
+            {
+                return;
+            }
+
+            await _context.LoanBalanceAccounts.AddAsync(
+                new LoanBalanceAccount
+                {
+                    LoanApplicationId =
+                        loanApplication.LoanApplicationId,
+                    RemainingPrincipal = loanApplication.LoanAmount,
+                    RemainingInterest = 0m
+                });
+        }
+
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();

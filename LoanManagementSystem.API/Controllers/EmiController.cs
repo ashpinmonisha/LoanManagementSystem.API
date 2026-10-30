@@ -1,43 +1,68 @@
-﻿using LoanManagementSystem.Application.Dtos;
-using LoanManagementSystem.Application.ServiceInterface;
+﻿using LoanManagementSystem.Application.ServiceInterface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace LoanManagementSystem.API.Controllers;
-
-[ApiController]
-[Route("api/emi")]
-// Add [Authorize] here after Akash's / Moni's JWT authentication is merged.
-public sealed class EmiController(IEmiCalculatorService emiService) : ControllerBase
+namespace LoanManagementSystem.API.Controllers
 {
-    // 3.1 EMI Calculation
-    [HttpPost("calculate")]
-    public ActionResult<EmiResponse> CalculateEmi(LoanCalculationRequest request) =>
-        Ok(emiService.CalculateEmi(request));
+    [ApiController]
+    [Route("api/emis")]
+    [Authorize(Roles = "Admin,Manager")]
+    public class EmisController : ControllerBase
+    {
+        private readonly ILoanOutstandingDataReader _reader;
+        private readonly IOutstandingBalanceService _outstandingBalanceService;
 
-    // 3.2 Interest Calculation
-    [HttpPost("interest")]
-    public ActionResult<InterestResponse> CalculateInterest(LoanCalculationRequest request) =>
-        Ok(emiService.CalculateInterest(request));
+        public EmisController(
+            ILoanOutstandingDataReader reader,
+            IOutstandingBalanceService outstandingBalanceService)
+        {
+            _reader = reader;
+            _outstandingBalanceService = outstandingBalanceService;
+        }
 
-    // 3.3 Repayment Schedule
-    [HttpPost("schedule")]
-    public ActionResult<RepaymentScheduleResponse> GetRepaymentSchedule(LoanCalculationRequest request) =>
-        Ok(emiService.GenerateRepaymentSchedule(request));
+        // GET: api/emis/loan/5
+        [HttpGet("loan/{loanId:int}")]
+        public async Task<IActionResult> GetLoanEmis(int loanId)
+        {
+            if (loanId <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID"
+                });
+            }
 
-    // 3.4 Advanced Loan Calculation & Analysis
-    [HttpPost("amortization")]
-    public ActionResult<AmortizationAnalysisResponse> GetAmortization(LoanCalculationRequest request) =>
-        Ok(emiService.AnalyzeAmortization(request));
+            var emis = await _reader.GetEmisAsync(loanId);
 
-    [HttpPost("prepayment")]
-    public ActionResult<PrepaymentResponse> CalculatePrepayment(PrepaymentRequest request) =>
-        Ok(emiService.CalculatePrepayment(request));
+            if (emis.Count == 0)
+            {
+                return Ok(new
+                {
+                    loanId,
+                    message = "EMI schedule not initialized",
+                    installments = emis
+                });
+            }
 
-    [HttpPost("compare")]
-    public ActionResult<LoanComparisonResponse> CompareLoans(LoanComparisonRequest request) =>
-        Ok(emiService.CompareLoans(request));
+            return Ok(emis);
+        }
 
-    [HttpPost("summary")]
-    public ActionResult<FinancialSummaryResponse> GetFinancialSummary(LoanCalculationRequest request) =>
-        Ok(emiService.GetFinancialSummary(request));
+        // GET: api/emis/outstanding/5
+        [HttpGet("outstanding/{loanId:int}")]
+        public async Task<IActionResult> GetOutstanding(int loanId)
+        {
+            if (loanId <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID"
+                });
+            }
+
+            var outstanding = await _outstandingBalanceService
+                .GetOutstandingBalanceAsync(loanId);
+
+            return Ok(outstanding);
+        }
+    }
 }

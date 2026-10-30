@@ -312,6 +312,24 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                     b.ToTable("LoanApplications");
                 });
 
+            modelBuilder.Entity("LoanManagementSystem.Domain.Entities.LoanBalanceAccount", b =>
+                {
+                    b.Property<int>("LoanApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RemainingInterest")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RemainingPrincipal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("LoanApplicationId");
+
+                    b.ToTable("LoanBalanceAccounts");
+                });
+
             modelBuilder.Entity("LoanManagementSystem.Domain.Entities.LoanCalculationRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -352,6 +370,44 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("LoanCalculations", (string)null);
+                });
+
+            modelBuilder.Entity("LoanManagementSystem.Domain.Entities.LoanEmiInstallment", b =>
+                {
+                    b.Property<int>("EmiId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EmiId"));
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("InterestDue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LoanApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PrincipalDue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("EmiId");
+
+                    b.HasIndex("LoanApplicationId");
+
+                    b.ToTable("LoanEmiInstallments");
                 });
 
             modelBuilder.Entity("LoanManagementSystem.Domain.Entities.Payment", b =>
@@ -862,6 +918,24 @@ namespace LoanManagementSystem.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("LoanManagementSystem.Domain.Entities.LoanBalanceAccount", b =>
+                {
+                    b.HasOne("LoanManagementSystem.Domain.Entities.LoanApplication", null)
+                        .WithOne()
+                        .HasForeignKey("LoanManagementSystem.Domain.Entities.LoanBalanceAccount", "LoanApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LoanManagementSystem.Domain.Entities.LoanEmiInstallment", b =>
+                {
+                    b.HasOne("LoanManagementSystem.Domain.Entities.LoanApplication", null)
+                        .WithMany()
+                        .HasForeignKey("LoanApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LoanManagementSystem.Domain.Entities.Customer", b =>

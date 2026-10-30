@@ -1,6 +1,8 @@
-﻿using LoanManagementSystem.Application.DTOs.Payment;
+﻿
+using LoanManagementSystem.Application.DTOs.Payment;
 using LoanManagementSystem.Application.ServiceInterface;
 using Microsoft.AspNetCore.Mvc;
+
 namespace LoanManagementSystem.API.Controllers
 {
     [ApiController]
@@ -15,11 +17,16 @@ namespace LoanManagementSystem.API.Controllers
             IPaymentService paymentService,
             IOutstandingBalanceService outstandingService)
         {
-            _paymentService = paymentService;
-            _outstandingService = outstandingService;
+            _paymentService = paymentService
+                ?? throw new ArgumentNullException(nameof(paymentService));
+
+            _outstandingService = outstandingService
+                ?? throw new ArgumentNullException(nameof(outstandingService));
         }
 
+        // ==========================================
         // 4.1 RECORD PAYMENT
+        // ==========================================
         [HttpPost]
         public async Task<IActionResult> RecordPayment(
             [FromBody] RecordPaymentDto dto)
@@ -33,49 +40,113 @@ namespace LoanManagementSystem.API.Controllers
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
             catch (InvalidOperationException ex)
             {
-                return Conflict(new { message = ex.Message });
+                return Conflict(new
+                {
+                    message = ex.Message
+                });
             }
         }
 
+        // ==========================================
         // 4.2 PAYMENT HISTORY
+        // ==========================================
         [HttpGet("history/{loanId:int}")]
-        public async Task<IActionResult> GetPaymentHistory(int loanId)
+        public async Task<IActionResult> GetPaymentHistory(
+            int loanId)
         {
             if (loanId <= 0)
-                return BadRequest("Invalid Loan ID");
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID."
+                });
+            }
 
-            var result = await _paymentService
-                .GetPaymentHistoryAsync(loanId);
+            try
+            {
+                var result = await _paymentService
+                    .GetPaymentHistoryAsync(loanId);
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    message = ex.Message
+                });
+            }
         }
 
+        // ==========================================
         // 4.2 CUSTOMER PAYMENT HISTORY
+        // ==========================================
         [HttpGet("history/{loanId:int}/{customerId:int}")]
         public async Task<IActionResult> GetCustomerPaymentHistory(
             int loanId,
             int customerId)
         {
             if (loanId <= 0 || customerId <= 0)
-                return BadRequest("Invalid Loan ID or Customer ID");
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID or Customer ID."
+                });
+            }
 
-            var result = await _paymentService
-                .GetCustomerPaymentHistoryAsync(
-                    loanId, customerId);
+            try
+            {
+                var result = await _paymentService
+                    .GetCustomerPaymentHistoryAsync(
+                        loanId,
+                        customerId);
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    message = ex.Message
+                });
+            }
         }
 
+        // ==========================================
         // 4.3 OUTSTANDING BALANCE
+        // ==========================================
         [HttpGet("outstanding/{loanId:int}")]
-        public async Task<IActionResult> GetOutstandingBalance(int loanId)
+        public async Task<IActionResult> GetOutstandingBalance(
+            int loanId)
         {
             if (loanId <= 0)
-                return BadRequest("Invalid Loan ID");
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Loan ID."
+                });
+            }
 
             try
             {
@@ -86,7 +157,24 @@ namespace LoanManagementSystem.API.Controllers
             }
             catch (KeyNotFoundException ex)
             {
-                return NotFound(new { message = ex.Message });
+                return NotFound(new
+                {
+                    message = ex.Message
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    message = ex.Message
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
             }
         }
     }

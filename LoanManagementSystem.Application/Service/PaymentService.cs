@@ -18,25 +18,38 @@ namespace LoanManagementSystem.Application.Services
             _notificationQueue = notificationQueue;
         }
 
-        // 4.1 Record Payment
+     
+        // 4.1 - RECORD PAYMENT
         public async Task<PaymentResponseDto> RecordPaymentAsync(
             RecordPaymentDto dto)
         {
+            if (dto == null)
+                throw new ArgumentException("Payment details are required.");
+
+            if (dto.CustomerId <= 0 || dto.LoanId <= 0)
+                throw new ArgumentException(
+                    "Valid Customer ID and Loan ID are required.");
+
             if (dto.Amount <= 0)
                 throw new ArgumentException(
-                    "Payment amount must be greater than zero");
+                    "Payment amount must be greater than zero.");
+
+            if (string.IsNullOrWhiteSpace(dto.PaymentMethod))
+                throw new ArgumentException(
+                    "Payment method is required.");
 
             if (string.IsNullOrWhiteSpace(dto.PaymentReference))
                 throw new ArgumentException(
-                    "Payment reference is required");
+                    "Payment reference is required.");
 
-            var existingPayment =
-                await _paymentRepository.GetByReferenceAsync(
-                    dto.PaymentReference);
+            string reference = dto.PaymentReference.Trim();
+
+            var existingPayment = await _paymentRepository
+                .GetByReferenceAsync(reference);
 
             if (existingPayment != null)
                 throw new InvalidOperationException(
-                    "Payment reference already exists");
+                    "Payment reference already exists.");
 
             var payment = new Payment
             {
@@ -44,26 +57,17 @@ namespace LoanManagementSystem.Application.Services
                 LoanId = dto.LoanId,
                 Amount = dto.Amount,
                 PaymentDate = dto.PaymentDate,
-                PaymentMethod = dto.PaymentMethod,
-                PaymentReference = dto.PaymentReference,
+                PaymentMethod = dto.PaymentMethod.Trim(),
+                PaymentReference = reference,
+
+                // Payment is not yet verified.
                 PaymentStatus = "Pending",
+
                 CreatedAt = DateTime.UtcNow
             };
 
             await _paymentRepository.AddAsync(payment);
             await _paymentRepository.SaveChangesAsync();
-
-            // Only verified successful payments should
-            // trigger success notifications.
-            if (payment.PaymentStatus == "Completed")
-            {
-                await _notificationQueue.QueueAsync(
-                    payment.PaymentId,
-                    payment.CustomerId,
-                    payment.LoanId,
-                    payment.Amount,
-                    payment.PaymentReference);
-            }
 
             return new PaymentResponseDto
             {

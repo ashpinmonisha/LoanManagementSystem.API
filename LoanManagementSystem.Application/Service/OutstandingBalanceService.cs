@@ -1,71 +1,121 @@
-﻿using LoanManagementSystem.Application.DTOs.Payment;
+﻿
+using LoanManagementSystem.Application.DTOs.Payment;
 using LoanManagementSystem.Application.ServiceInterface;
 
 namespace LoanManagementSystem.Application.Services
 {
-    public class OutstandingBalanceService : IOutstandingBalanceService
+    public class OutstandingBalanceService
+        : IOutstandingBalanceService
     {
-        private readonly ILoanModuleClient _loanModuleClient;
+        private readonly ILoanOutstandingDataReader _reader;
         private readonly IPaymentRepository _paymentRepository;
 
         public OutstandingBalanceService(
-            ILoanModuleClient loanModuleClient,
+            ILoanOutstandingDataReader reader,
             IPaymentRepository paymentRepository)
         {
-            _loanModuleClient = loanModuleClient;
-            _paymentRepository = paymentRepository;
+            _reader = reader
+                ?? throw new ArgumentNullException(nameof(reader));
+
+            _paymentRepository = paymentRepository
+                ?? throw new ArgumentNullException(nameof(paymentRepository));
         }
 
-        public async Task<OutstandingBalanceDto> GetOutstandingBalanceAsync(
-            int loanId)
+        // ==========================================
+        // MODULE 4.3 - OUTSTANDING BALANCE
+        // ==========================================
+        public async Task<OutstandingBalanceDto>
+            GetOutstandingBalanceAsync(int loanId)
         {
+            // STEP 1 - Validate Loan ID
             if (loanId <= 0)
-                throw new ArgumentException("Invalid Loan ID");
+            {
+                throw new ArgumentException(
+                    "Invalid Loan ID.",
+                    nameof(loanId));
+            }
 
-            // Get loan details from Moni's module
-            var loan = await _loanModuleClient
-                .GetLoanBalanceAsync(loanId);
+            // STEP 2 - Get loan balance
+            var loan = await _reader.GetLoanBalanceAsync(loanId);
 
             if (loan == null)
-                throw new KeyNotFoundException("Loan not found");
+            {
+                throw new KeyNotFoundException(
+                    $"Loan balance not found for Loan ID {loanId}.");
+            }
 
-            // Get EMI schedule from Jousha's module
-            var emis = await _loanModuleClient
-                .GetEmisAsync(loanId);
+            // STEP 3 - Validate stored balances
+            if (loan.RemainingPrincipal < 0 ||
+                loan.RemainingInterest < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid negative loan balance for Loan ID {loanId}.");
+            }
 
-            // Calculate pending EMI
-            decimal pendingEmi = emis
-                .Sum(e => e.RemainingAmount);
+            // STEP 4 - Read EMI schedule
+            var emis = await _reader.GetEmisAsync(loanId);
 
-            // Calculate overdue EMI
-            var today = DateTime.UtcNow.Date;
+            decimal pendingEmiAmount = 0m;
+            decimal overdueAmount = 0m;
 
-            decimal overdueAmount = emis
-                .Where(e =>
-                    e.DueDate.Date < today &&
-                    e.RemainingAmount > 0)
-                .Sum(e => e.RemainingAmount);
+            // An active loan must have an initialized schedule.
+            if (emis == null || emis.Count == 0)
+            {
+                if (loan.RemainingPrincipal > 0 ||
+                    loan.RemainingInterest > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"EMI schedule is missing for Loan ID {loanId}. " +
+                        "Initialize the EMI installments before calculating " +
+                        "the complete outstanding balance.");
+                }
+            }
+            else
+            {
+                DateTime today = DateTime.UtcNow.Date;
 
-            // Get unpaid penalty amount
-            decimal penaltyAmount = await _paymentRepository
-                .GetPenaltyTotalAsync(loanId);
+                // STEP 5 - Pending EMI
+                pendingEmiAmount = emis.Sum(e =>
+                    Math.Max(0m, e.RemainingAmount));
 
-            // Remaining principal and interest
-            decimal remainingPrincipal = loan.RemainingPrincipal;
-            decimal remainingInterest = loan.RemainingInterest;
+                // STEP 6 - Overdue EMI
+                overdueAmount = emis
+                    .Where(e =>
+                        e.DueDate.Date < today &&
+                        e.RemainingAmount > 0m)
+                    .Sum(e => e.RemainingAmount);
+            }
 
-            // Avoid counting pending EMI twice
+            // STEP 7 - Get unpaid penalties
+            decimal penaltyAmount =
+                await _paymentRepository.GetPenaltyTotalAsync(loanId);
+
+            if (penaltyAmount < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid penalty balance for Loan ID {loanId}.");
+            }
+
+            // STEP 8 - Loan balance
+            decimal remainingPrincipal =
+                loan.RemainingPrincipal;
+
+            decimal remainingInterest =
+                loan.RemainingInterest;
+
+            // STEP 9 - Avoid double-counting EMI
             decimal totalOutstanding =
                 remainingPrincipal +
                 remainingInterest +
                 penaltyAmount;
 
+            // STEP 10 - Return result
             return new OutstandingBalanceDto
             {
                 LoanId = loanId,
                 RemainingPrincipal = remainingPrincipal,
                 RemainingInterest = remainingInterest,
-                PendingEmiAmount = pendingEmi,
+                PendingEmiAmount = pendingEmiAmount,
                 OverdueAmount = overdueAmount,
                 PenaltyAmount = penaltyAmount,
                 TotalOutstanding = totalOutstanding

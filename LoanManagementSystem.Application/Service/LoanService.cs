@@ -76,6 +76,11 @@ namespace LoanManagementSystem.Application.Service
                 ? "Approved"
                 : "Rejected";
 
+            if (dto.Approved)
+            {
+                await _loanRepository.InitializeBalanceAsync(loan);
+            }
+
             loan.Remarks = dto.Remarks;
 
             loan.ReviewedByEmployeeId = employeeId;
